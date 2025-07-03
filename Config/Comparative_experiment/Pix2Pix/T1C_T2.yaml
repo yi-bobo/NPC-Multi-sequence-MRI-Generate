@@ -1,0 +1,66 @@
+train:   # 训练参数
+  multi_gpu: false  # 是否使用多GPU
+  is_train: True  # 是否训练
+  continue_train: false  # 是否接着上次训练
+  gpu: 2  # 使用GPU序号
+  batch_size: 8  # 批大小
+  num_workers: 4  # 线程数
+  seed: 1234  # 随机种子
+  overlap: 0.75
+  max_epochs: 300  # 最大训练轮数
+  epoch_start: 0  # 起始训练轮数
+  save_freq: 10  # 保存间隔
+  val_freq: 30  # 验证间隔
+  log_freq: 100  # 日志记录间隔
+  model_name: ""
+
+val:
+  overlap: 0.5
+
+path:
+  save_dir: "./Result/Pix2Pix/"
+  checkpoint_path: ""
+
+data:   # 数据参数
+  split_dir:  "/data1/weiyibo/NPC-MRI/Code/Pctch_model/Split/zhongshan2" # "/data1/weiyibo/NPC-MRI/Split/Resample_Register_NII_zhongshan2/"
+  norm_mode: "global_norm"
+  resize_image_shape: [36, 256, 256]
+  patch_image_shape: [8, 256, 256]
+  img_con_name: ["T1C_mask", "T2", "T1C_tumor"]
+  sour_img_name: "T1C"
+  targ_img_name: "T2"
+  overlap: 0.1
+  num_random_crops: 16
+
+loss:   # 损失函数参数
+  gan_mode: "vanilla"  # GAN模式
+  lambda_L1: 20.0  # L1损失权重
+  lambda_GAN: 1.0   # GAN损失权重
+
+optim_G:  # 生成器优化器参数
+  optim_mode: "Adam"  # 生成器优化器
+  scheduler_mode: "CosineAnnealingLR_Warmup"  # 生成器学习率调度器
+  lr: 0.0002  # 生成器学习率
+  beta_start: 0.5  # 生成器Adam优化器beta1
+  beta_end: 0.999  # 生成器Adam优化器beta2
+
+optim_D:  # 判别器优化器参数
+  optim_mode: "Adam"  # 判别器优化器
+  scheduler_mode: "CosineAnnealingLR_Warmup"  # 判别器学习率调度器
+  lr: 0.0002  # 判别器学习率
+  beta_start: 0.5  # 判别器Adam优化器beta1
+  beta_end: 0.999  # 判别器Adam优化器beta2
+
+net:
+  G: # 生成网络参数
+    dims: 3   # 维度
+    input_nc: 1    # 输入通道数
+    output_nc: 1   # 输出通道数
+    ngf: 64        # 通道数
+    n_downsampling: 4 # 降采样次数
+
+  D: # 判别网络参数
+    input_nc: 2    # 输入通道数
+    ndf: 64        # 通道数
+    n_layers: 3    # 层数
+    dims: 3       # 维度
