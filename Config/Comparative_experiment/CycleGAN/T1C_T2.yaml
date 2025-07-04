@@ -2,12 +2,12 @@ train:   # 训练参数
   multi_gpu: false  # 是否使用多GPU
   is_train: True  # 是否训练
   continue_train: false  # 是否接着上次训练
-  gpu: 7  # 使用GPU序号
+  gpu: 5  # 使用GPU序号
   batch_size: 8  # 批大小
   num_workers: 4  # 线程数
   seed: 1234  # 随机种子
   overlap: 0.75
-  max_epochs: 300  # 最大训练轮数
+  max_epochs: 200  # 最大训练轮数
   epoch_start: 0  # 起始训练轮数
   save_freq: 10  # 保存间隔
   val_freq: 30  # 验证间隔
@@ -18,7 +18,7 @@ val:
   overlap: 0.5
 
 path:
-  save_dir: "./Result/Pix2Pix/"
+  save_dir: "./Result/CycleGAN/"
   checkpoint_path: ""
 
 data:   # 数据参数
@@ -28,7 +28,7 @@ data:   # 数据参数
   patch_image_shape: [8, 256, 256]
   img_con_name: ["T1C_mask", "T2", "T1C_tumor"]
   sour_img_name: "T1C"
-  targ_img_name: "T1"
+  targ_img_name: "T2"
   overlap: 0.1
   num_random_crops: 16
 

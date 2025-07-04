@@ -2,12 +2,12 @@ train:   # 训练参数
   multi_gpu: false  # 是否使用多GPU
   is_train: True  # 是否训练
   continue_train: false  # 是否接着上次训练
-  gpu: 5  # 使用GPU序号
+  gpu: 1  # 使用GPU序号
   batch_size: 8  # 批大小
   num_workers: 4  # 线程数
   seed: 1234  # 随机种子
   overlap: 0.75
-  max_epochs: 300  # 最大训练轮数
+  max_epochs: 200  # 最大训练轮数
   epoch_start: 0  # 起始训练轮数
   save_freq: 10  # 保存间隔
   val_freq: 1  # 验证间隔

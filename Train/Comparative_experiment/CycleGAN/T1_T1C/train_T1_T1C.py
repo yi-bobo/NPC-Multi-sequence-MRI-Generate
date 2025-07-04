@@ -185,7 +185,7 @@ def random_sliding_window_image(model, data, patch_size, overlap):
 
 def main():
     # 1️⃣ 加载配置
-    config_path = "./Config/Comparative_experiment/CycleGAN/T1_T2.yaml"
+    config_path = "./Config/Comparative_experiment/CycleGAN/T1_T1C.yaml"
     opt = load_yaml_config(config_path)
 
     # 1.1 设置随机种子与保存路径

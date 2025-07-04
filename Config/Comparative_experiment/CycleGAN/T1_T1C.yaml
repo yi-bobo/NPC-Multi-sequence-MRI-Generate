@@ -18,7 +18,7 @@ val:
   overlap: 0.5
 
 path:
-  save_dir: "./Result/Pix2Pix/"
+  save_dir: "./Result/CycleGAN/"
   checkpoint_path: ""
 
 data:   # 数据参数
