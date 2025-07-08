@@ -1,0 +1,72 @@
+train:   # 训练参数
+  is_train: True  # 是否训练
+  continue_train: false  # 是否接着上次训练
+  multi_gpu: false  # 是否使用多GPU训练
+  gpu: 6 # 使用GPU序号
+  batch_size: 4  # 批大小
+  num_workers: 1  # 线程数
+  max_epochs: 300  # 最大训练轮数
+  epoch_start: 0  # 起始训练轮数
+  save_freq: 10  # 保存间隔
+  val_freq: 50  # 验证间隔
+  log_freq: 100  # 日志记录间隔
+  seed: 1234  # 随机种子
+  model_name: ""  # 
+
+val:
+  overlap: 0.5
+
+path:
+  save_dir: "./Result/DDPM"
+  checkpoint_path: ""
+
+loss:
+  lambda_l1: 1
+  lambda_eps: 1
+
+model:
+  num_timesteps: 1000
+
+
+net:
+  spatial_dims: 3  # 2D网络
+  in_channels: 2  # 输入通道数
+  out_channels: 1  # 输出通道数
+  num_res_blocks: [1, 1, 1, 1]  # 每层的残差块数量
+  channels: [32, 64, 128, 256]  # 每层的通道数
+  attention_levels: [False, False, False, True]  # 注意力层级,在第三四层使用注意力机制
+  norm_num_groups: 32  # 归一化的组数
+  norm_eps: 0.000001  # 归一化的epsilon值
+  resblock_updown: False  # 残差块是否使用上采样和下采样
+  num_head_channels: [8, 8, 8, 8]   # 注意力头的通道数
+  with_conditioning: False  # 是否使用条件输入
+  transformer_num_layers: 0  # 使用2层Transformer块
+  cross_attention_dim: null  # 使用64维的跨注意力上下文
+  upcast_attention: False  # 不使用全精度的注意力操作
+  dropout_cattn: 0.0  # dropout率
+  include_fc: True  # 是否包含全连接层
+  use_combined_linear: False  # 是否使用联合线性层
+  use_flash_attention: False  # 不使用闪存注意力
+
+
+data:   # 数据参数
+  split_dir:  "/data1/weiyibo/NPC-MRI/Code/Pctch_model/Split/zhongshan2" # "/data1/weiyibo/NPC-MRI/Split/Resample_Register_NII_zhongshan2/"
+  norm_mode: "global_norm"
+  resize_image_shape: [36, 256, 256]
+  patch_image_shape: [8, 256, 256]
+  img_con_name: ["T1C_mask", "T2", "T1C_tumor"]
+  sour_img_name: "T1C"
+  targ_img_name: "T1"
+  overlap: 0.1
+  num_random_crops: 16
+
+optim:  # 生成器优化器参数
+  optimizer:
+    name: "AdamW"
+    params:
+      lr: 0.0001
+  scheduler:
+    name: "GradualWarmupScheduler"
+    params:
+      multiplier: 2.0
+      total_epoch: 5

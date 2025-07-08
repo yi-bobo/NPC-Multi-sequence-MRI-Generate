@@ -4,14 +4,16 @@ import torch
 import random
 import numpy as np
 import torch.nn as nn
-from torch.nn import DataParallel
 from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
 
+from Model.Net.RegGAN_Net.Reg_net import Reg
 from Model.Net.GAN_Net.UNet import UNet
 from Utils.loss.gan_loss import GANLoss
+from Utils.loss.grad_loss import Grad
 from Utils.optim_util import GradualWarmupScheduler
 from .Net.GAN_Net.Discriminator import NLayerDiscriminator
+from Model.Net.RegGAN_Net.Blocks.transformer_block import SpatialTransformer
 
 
 class RegGANModel(nn.Module):
@@ -33,30 +35,29 @@ class RegGANModel(nn.Module):
             
         # 损失函数和优化器
         if self.isTrain:
-            self.netR = Reg(opt, self.shape, int_downsize=2).to(self.device)
+            self.netR = Reg(opt.net.R, opt.data.patch_image_shape, int_downsize=2).to(self.device)
             self.netD = NLayerDiscriminator(**(vars(opt.net.D)))  # 定义判别器（Discriminator）
+            # configure transformer
+            self.SpatialTransformer = SpatialTransformer(opt.data.patch_image_shape).to(self.device)
            
             # GAN损失函数
             self.criterionGAN = GANLoss(opt.loss.gan_mode).to(self.device)
             self.criterionL1 = nn.L1Loss().to(self.device)  # L1损失
+            self.smoothing_loss = Grad('l2', loss_mult=2).loss
             
-
             # 优化器和学习率调度器
-            self.optimizer_G = torch.optim.AdamW(self.net_G.parameters(), lr=opt.optim_G.lr, weight_decay=1e-4)
-            self.optimizer_D = torch.optim.AdamW(self.net_D.parameters(), lr=opt.optim_D.lr, weight_decay=1e-4)
-
-            scheduler_params = {
-                "T_max": opt.train.max_epochs, "eta_min": 0, "last_epoch": -1
-            }
-            warmup_epochs = 500
-            self.scheduler_G = GradualWarmupScheduler(
-                self.optimizer_G, multiplier=2, warm_epoch=warmup_epochs,
-                after_scheduler=torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_G, **scheduler_params)
-            )
-            self.scheduler_D = GradualWarmupScheduler(
-                self.optimizer_D, multiplier=2, warm_epoch=warmup_epochs,
-                after_scheduler=torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_D, **scheduler_params)
-            )
+            self.optimizer_G = torch.optim.AdamW(self.netG.parameters(), lr=opt.optim_G.lr, weight_decay=1e-4)
+            self.cosineScheduler_G = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_G, T_max=opt.train.max_epochs, eta_min=0, last_epoch=-1)
+            self.warmUpScheduler_G = GradualWarmupScheduler(self.optimizer_G, multiplier=2, warm_epoch=opt.train.max_epochs // 10 , 
+                                         after_scheduler=self.cosineScheduler_G)
+            self.optimizer_D = torch.optim.AdamW(self.netD.parameters(), lr=opt.optim_D.lr, weight_decay=1e-4)
+            self.cosineScheduler_D = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_D, T_max=opt.train.max_epochs, eta_min=0, last_epoch=-1)
+            self.warmUpScheduler_D = GradualWarmupScheduler(self.optimizer_D, multiplier=2, warm_epoch=opt.train.max_epochs // 10, 
+                                         after_scheduler=self.cosineScheduler_D)
+            self.optimizer_R = torch.optim.AdamW(self.netR.parameters(), lr=opt.optim_G.lr, weight_decay=1e-4)
+            self.cosineScheduler_R = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_R, T_max=opt.train.max_epochs, eta_min=0, last_epoch=-1)
+            self.warmUpScheduler_R = GradualWarmupScheduler(self.optimizer_R, multiplier=2, warm_epoch=opt.train.max_epochs // 10, 
+                                         after_scheduler=self.cosineScheduler_R)
 
     def set_input(self, data):
         data_mapping = {
@@ -79,60 +80,85 @@ class RegGANModel(nn.Module):
         data_mapping.pop('T2_tumor')
 
         return input_data, target_data, patient_id, data_mapping
-
-    def forward(self, input, target):
+    
+    def forward(self, input, target, epoch=None):
         self.real_A = input.to(self.device)  # 输入的真实图像A
         self.real_B = target.to(self.device)  # 目标的真实图像B
 
-        # 通过生成器生成假图像B
-        self.fake_B = self.net_G(self.real_A)
-
-        # 更新判别器（D）
-        self.optimizer_D.zero_grad()
-
-        # 计算假图像的判别结果
-        fake_AB = torch.cat((self.real_A, self.fake_B), 1)
-        pred_fake = self.net_D(fake_AB.detach(), isDetach=True)  # 使用detach避免计算梯度
-        self.loss_D_fake = self.criterionGAN(pred_fake, False)
-
-        # 计算真实图像的判别结果
-        real_AB = torch.cat((self.real_A, self.real_B), 1)
-        pred_real = self.net_D(real_AB, isDetach=False)
-        self.loss_D_real = self.criterionGAN(pred_real, True)
-
-        # 判别器的总损失
-        self.loss_D = (self.loss_D_fake + self.loss_D_real) * 0.5
-        self.loss_D.backward()
-        self.optimizer_D.step()
-
-        # 更新生成器（G）
+        self.optimizer_R.zero_grad()
         self.optimizer_G.zero_grad()
 
-        # 生成器的损失（针对假图像）
-        pred_fake = self.net_D(fake_AB, isDetach=True)
+        # 记录判别器损失
+        self.previous_loss_D_fake = getattr(self, 'previous_loss_D_fake', None)
+        self.previous_loss_D_real = getattr(self, 'previous_loss_D_real', None)
+        
+        # 当前判别器的损失
+        loss_D_fake = 0
+        loss_D_real = 0
+
+        with torch.amp.autocast('cuda'):
+            self.fake_B = self.netG(self.real_A)
+        with torch.amp.autocast('cuda'):
+            Trans, full_Trans = self.netR(self.fake_B, self.real_B)
+            self.SysRegist_A2B = self.SpatialTransformer(self.fake_B, full_Trans)
+
+        self.loss_SR = 20 * self.criterionL1(self.SysRegist_A2B, self.real_B)  ###SR
+        self.loss_SM = 10 * self.smoothing_loss(Trans)
+
+        fake_AB = torch.cat((self.real_A, self.fake_B), 1)
+
+        with torch.amp.autocast('cuda'):
+            pred_fake = self.netD(fake_AB, isDetach=False)
         self.loss_G_GAN = self.criterionGAN(pred_fake, True)
 
-        # 计算L1损失
-        self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
-
-        # 计算总生成器损失
-        self.loss_G = self.lambda_GAN * self.loss_G_GAN + self.lambda_L1 * self.loss_G_L1
+        # combine loss and calculate gradients
+        self.loss_G = self.loss_G_GAN + self.loss_SR + self.loss_SM
         self.loss_G.backward()
-        self.optimizer_G.step()
+        self.optimizer_G.step()  # udpate G's weights
+        self.optimizer_R.step()  # udpate R's weights
+
+        # 计算判别器损失
+        real_AB = torch.cat((self.real_A, self.real_B), 1)
+        
+        with torch.amp.autocast('cuda'):
+            pred_fake = self.netD(fake_AB.detach(), isDetach=True)
+        loss_D_fake = self.criterionGAN(pred_fake, False)
+        
+        with torch.amp.autocast('cuda'):
+            pred_real = self.netD(real_AB, isDetach=True)
+        loss_D_real = self.criterionGAN(pred_real, True)
+
+        # 判别器性能检查：如果损失变化非常小，暂停训练判别器
+        if self.previous_loss_D_fake is not None and self.previous_loss_D_real is not None:
+            if abs(loss_D_fake - self.previous_loss_D_fake) < 1e-4 and abs(loss_D_real - self.previous_loss_D_real) < 1e-4:
+                # 判别器的损失变化非常小，暂时不更新判别器
+                print("Discriminator is stable, skipping update.")
+                loss_D_fake = 0
+                loss_D_real = 0
+            else:
+                # 更新判别器
+                self.loss_D_loss = (loss_D_fake + loss_D_real) * 0.5
+                self.loss_D_loss.backward()
+                self.optimizer_D.step()  # update D's weights
+        
+        # 保存当前损失值用于下一次判定
+        self.previous_loss_D_fake = loss_D_fake
+        self.previous_loss_D_real = loss_D_real
 
         loss_dict = {
-            'loss_G':self.loss_G.item(),
-            'loss_G_GAN':self.loss_G_GAN.item(),
-            'loss_G_L1':self.loss_G_L1.item(),
-            'loss_D':self.loss_D.item(),
-            'loss_D_fake':self.loss_D_fake.item(),
-            'loss_D_real':self.loss_D_real.item()
+            'loss_G': self.loss_G.item(),
+            'loss_G_GAN': self.loss_G_GAN.item(),
+            'loss_SR': self.loss_SR.item(),
+            'loss_SM': self.loss_SM.item(),
+            'loss_D_loss': self.loss_D_loss.item() if loss_D_fake > 0 and loss_D_real > 0 else 0,
+            'loss_D_fake': loss_D_fake.item() if loss_D_fake > 0 else 0,
+            'loss_D_real': loss_D_real.item() if loss_D_real > 0 else 0,
         }
-
         return loss_dict
 
+
     def val(self, input, target):
-        self.net_G.eval()  # 设置模型为评估模式
+        self.netG.eval()  # 设置模型为评估模式
 
         # 初始化预测结果张量和权重张量
         pred_targ = torch.zeros_like(input, device=input.device)  # 预测结果张量
@@ -183,7 +209,7 @@ class RegGANModel(nn.Module):
            
             # 推理当前批次
             with torch.no_grad():
-                pred_targ_batch = self.net_G(input_batch)
+                pred_targ_batch = self.netG(input_batch)
 
             # 将生成结果拼接回预测张量
             for j, (d_start, h_start, w_start) in enumerate(batch_indices):
