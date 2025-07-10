@@ -117,7 +117,7 @@ def validate_model(model, val_loader, epoch, opt, best_metrics, model_components
 
     return best_metrics
 
-def random_sliding_window_image(model, data, patch_size, overlap):
+def random_sliding_window_image(model, data, patch_size, epoch):
     """
     对 3D 图像进行随机裁剪，并计算每个图像所有随机块的损失均值。
 
@@ -160,7 +160,7 @@ def random_sliding_window_image(model, data, patch_size, overlap):
         target_patch = target_patch.to(input.device)
 
         # 计算单个块的损失
-        loss_dict = model(input_patch, target_patch)
+        loss_dict = model(input_patch, target_patch, epoch)
 
         # 累加损失字典中的每项
         for key in loss_dict:
@@ -218,7 +218,7 @@ def main():
 
         for i, data in enumerate(train_loader):
         # for i, data in zip(range(2), train_loader):
-            loss_dict = random_sliding_window_image(model, data, opt.data.patch_image_shape, opt.data.overlap)
+            loss_dict = random_sliding_window_image(model, data, opt.data.patch_image_shape, epoch)
             loss_sums = {key: loss_sums[key] + loss_dict[key] for key in loss_dict.keys()}
             # 累加每个损失函数的值
             if i % opt.train.log_freq == 0:

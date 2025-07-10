@@ -1,6 +1,6 @@
 train:   # 训练参数
   is_train: True  # 是否训练
-  continue_train: false  # 是否接着上次训练
+  continue_train: true  # 是否接着上次训练
   multi_gpu: false  # 是否使用多GPU训练
   gpu: 7 # 使用GPU序号
   batch_size: 4  # 批大小
@@ -18,7 +18,7 @@ val:
 
 path:
   save_dir: "./Result/DDPM"
-  checkpoint_path: ""
+  checkpoint_path: "./Result/DDPM/T1C_to_T2/Checkpoints/latest.pth"
 
 loss:
   lambda_l1: 1

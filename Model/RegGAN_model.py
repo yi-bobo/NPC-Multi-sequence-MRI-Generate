@@ -11,6 +11,7 @@ from Model.Net.RegGAN_Net.Reg_net import Reg
 from Model.Net.GAN_Net.UNet import UNet
 from Utils.loss.gan_loss import GANLoss
 from Utils.loss.grad_loss import Grad
+from Utils.loss.perceptual_loss import VGGLoss_3D
 from Utils.optim_util import GradualWarmupScheduler
 from .Net.GAN_Net.Discriminator import NLayerDiscriminator
 from Model.Net.RegGAN_Net.Blocks.transformer_block import SpatialTransformer
@@ -24,6 +25,10 @@ class RegGANModel(nn.Module):
         self.isTrain = opt.train.is_train  # 是否是训练模式
         self.lambda_L1 = opt.loss.lambda_L1  # L1损失的权重
         self.lambda_GAN = opt.loss.lambda_GAN  # GAN损失的权重
+        self.lambda_perc = opt.loss.lambda_perc  # 风格损失的权重
+        self.lambda_SR = opt.loss.lambda_SR  # 超分辨损失的权重
+        self.lambda_SM = opt.loss.lambda_SM  # 平滑损失的权重
+        self.warm_epoch = opt.loss.warm_epoch  # 预热轮数
 
         self.sour_name = opt.data.sour_img_name  # 源数据名称
         self.targ_name = opt.data.targ_img_name  # 目标数据名称
@@ -44,6 +49,7 @@ class RegGANModel(nn.Module):
             self.criterionGAN = GANLoss(opt.loss.gan_mode).to(self.device)
             self.criterionL1 = nn.L1Loss().to(self.device)  # L1损失
             self.smoothing_loss = Grad('l2', loss_mult=2).loss
+            self.perceptual_loss = VGGLoss_3D(device=self.device)
             
             # 优化器和学习率调度器
             self.optimizer_G = torch.optim.AdamW(self.netG.parameters(), lr=opt.optim_G.lr, weight_decay=1e-4)
@@ -81,78 +87,65 @@ class RegGANModel(nn.Module):
 
         return input_data, target_data, patient_id, data_mapping
     
-    def forward(self, input, target, epoch=None):
+    def forward(self, input, target, epoch):
         self.real_A = input.to(self.device)  # 输入的真实图像A
         self.real_B = target.to(self.device)  # 目标的真实图像B
 
-        self.optimizer_R.zero_grad()
-        self.optimizer_G.zero_grad()
-
-        # 记录判别器损失
-        self.previous_loss_D_fake = getattr(self, 'previous_loss_D_fake', None)
-        self.previous_loss_D_real = getattr(self, 'previous_loss_D_real', None)
-        
-        # 当前判别器的损失
-        loss_D_fake = 0
-        loss_D_real = 0
-
-        with torch.amp.autocast('cuda'):
+        # 通过生成器生成假图像B
+        with torch.amp.autocast('cuda'):#使用半精度训练f16
             self.fake_B = self.netG(self.real_A)
-        with torch.amp.autocast('cuda'):
             Trans, full_Trans = self.netR(self.fake_B, self.real_B)
             self.SysRegist_A2B = self.SpatialTransformer(self.fake_B, full_Trans)
-
-        self.loss_SR = 20 * self.criterionL1(self.SysRegist_A2B, self.real_B)  ###SR
-        self.loss_SM = 10 * self.smoothing_loss(Trans)
-
+        
         fake_AB = torch.cat((self.real_A, self.fake_B), 1)
+        
+        ##1️⃣ 更新判别器（D）
+        if epoch > self.warm_epoch:
+            self.optimizer_D.zero_grad()
+            # 计算假图像的判别结果
+            pred_fake = self.netD(fake_AB.detach(), isDetach=True)  # 使用detach避免计算梯度
+            self.loss_D_fake = self.criterionGAN(pred_fake, False)
+            # 计算真实图像的判别结果
+            real_AB = torch.cat((self.real_A, self.real_B), 1)
+            pred_real = self.netD(real_AB, isDetach=False)
+            self.loss_D_real = self.criterionGAN(pred_real, True)
+            # 判别器的总损失
+            self.loss_D = (self.loss_D_fake + self.loss_D_real) * 0.5
+            self.loss_D.backward()
+            self.optimizer_D.step()
+        else:
+            self.loss_D = torch.tensor(0.0, device=self.device)
+            self.loss_D_fake = torch.tensor(0.0, device=self.device)
+            self.loss_D_real = torch.tensor(0.0, device=self.device)
 
-        with torch.amp.autocast('cuda'):
-            pred_fake = self.netD(fake_AB, isDetach=False)
+        ##2️⃣ 更新生成器（G）更新配准器（R）
+        self.optimizer_G.zero_grad()
+        self.optimizer_R.zero_grad()
+        # 生成器的损失（针对假图像）
+        pred_fake = self.netD(fake_AB, isDetach=True)
         self.loss_G_GAN = self.criterionGAN(pred_fake, True)
-
-        # combine loss and calculate gradients
-        self.loss_G = self.loss_G_GAN + self.loss_SR + self.loss_SM
+        # 计算L1损失
+        self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
+        # 计算感知损失
+        self.loss_perc = self.perceptual_loss(self.fake_B.float(), self.real_B)
+        # 计算对齐损失
+        self.loss_SR = self.criterionL1(self.SysRegist_A2B, self.real_B)  
+        self.loss_SM = self.smoothing_loss(Trans)
+        # 计算总生成器损失
+        self.loss_G = self.lambda_GAN * self.loss_G_GAN + self.lambda_L1 * self.loss_G_L1 + self.lambda_perc * self.loss_perc + self.lambda_SR * self.loss_SR + self.lambda_SM * self.loss_SM
         self.loss_G.backward()
-        self.optimizer_G.step()  # udpate G's weights
-        self.optimizer_R.step()  # udpate R's weights
-
-        # 计算判别器损失
-        real_AB = torch.cat((self.real_A, self.real_B), 1)
-        
-        with torch.amp.autocast('cuda'):
-            pred_fake = self.netD(fake_AB.detach(), isDetach=True)
-        loss_D_fake = self.criterionGAN(pred_fake, False)
-        
-        with torch.amp.autocast('cuda'):
-            pred_real = self.netD(real_AB, isDetach=True)
-        loss_D_real = self.criterionGAN(pred_real, True)
-
-        # 判别器性能检查：如果损失变化非常小，暂停训练判别器
-        if self.previous_loss_D_fake is not None and self.previous_loss_D_real is not None:
-            if abs(loss_D_fake - self.previous_loss_D_fake) < 1e-4 and abs(loss_D_real - self.previous_loss_D_real) < 1e-4:
-                # 判别器的损失变化非常小，暂时不更新判别器
-                print("Discriminator is stable, skipping update.")
-                loss_D_fake = 0
-                loss_D_real = 0
-            else:
-                # 更新判别器
-                self.loss_D_loss = (loss_D_fake + loss_D_real) * 0.5
-                self.loss_D_loss.backward()
-                self.optimizer_D.step()  # update D's weights
-        
-        # 保存当前损失值用于下一次判定
-        self.previous_loss_D_fake = loss_D_fake
-        self.previous_loss_D_real = loss_D_real
+        self.optimizer_G.step()
+        self.optimizer_R.step()
 
         loss_dict = {
             'loss_G': self.loss_G.item(),
             'loss_G_GAN': self.loss_G_GAN.item(),
+            'loss_perc': self.loss_perc.item(),
             'loss_SR': self.loss_SR.item(),
             'loss_SM': self.loss_SM.item(),
-            'loss_D_loss': self.loss_D_loss.item() if loss_D_fake > 0 and loss_D_real > 0 else 0,
-            'loss_D_fake': loss_D_fake.item() if loss_D_fake > 0 else 0,
-            'loss_D_real': loss_D_real.item() if loss_D_real > 0 else 0,
+            'loss_D': self.loss_D.item(),
+            'loss_D_fake': self.loss_D_fake.item(),
+            'loss_D_real': self.loss_D_real.item(),
         }
         return loss_dict
 
