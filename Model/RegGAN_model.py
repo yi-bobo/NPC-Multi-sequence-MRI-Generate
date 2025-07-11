@@ -7,14 +7,18 @@ import torch.nn as nn
 from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
 
-from Model.Net.RegGAN_Net.Reg_net import Reg
+from Utils.init_net_util import init_net
+
 from Model.Net.GAN_Net.UNet import UNet
-from Utils.loss.gan_loss import GANLoss
-from Utils.loss.grad_loss import Grad
-from Utils.loss.perceptual_loss import VGGLoss_3D
-from Utils.optim_util import GradualWarmupScheduler
+from Model.Net.RegGAN_Net.Reg_net import Reg
 from .Net.GAN_Net.Discriminator import NLayerDiscriminator
 from Model.Net.RegGAN_Net.Blocks.transformer_block import SpatialTransformer
+
+from Utils.loss.grad_loss import Grad
+from Utils.loss.gan_loss import GANLoss
+from Utils.loss.perceptual_loss import VGGLoss_3D
+
+from Utils.optim_util import GradualWarmupScheduler
 
 
 class RegGANModel(nn.Module):
@@ -28,7 +32,7 @@ class RegGANModel(nn.Module):
         self.lambda_perc = opt.loss.lambda_perc  # 风格损失的权重
         self.lambda_SR = opt.loss.lambda_SR  # 超分辨损失的权重
         self.lambda_SM = opt.loss.lambda_SM  # 平滑损失的权重
-        self.warm_epoch = opt.loss.warm_epoch  # 预热轮数
+        self.warm_iter = opt.loss.warm_iter  # 预热轮数
 
         self.sour_name = opt.data.sour_img_name  # 源数据名称
         self.targ_name = opt.data.targ_img_name  # 目标数据名称
@@ -37,11 +41,14 @@ class RegGANModel(nn.Module):
 
         # 定义生成器（Generator）
         self.netG = UNet(**(vars(opt.net.G)))  # 使用UNet网络作为生成器
+        self.netG = init_net(self.netG, init_type=opt.net.init_type, init_gain=opt.net.init_gain)
             
         # 损失函数和优化器
         if self.isTrain:
             self.netR = Reg(opt.net.R, opt.data.patch_image_shape, int_downsize=2).to(self.device)
+            self.netR = init_net(self.netR, init_type=opt.net.init_type, init_gain=opt.net.init_gain)
             self.netD = NLayerDiscriminator(**(vars(opt.net.D)))  # 定义判别器（Discriminator）
+            self.netD = init_net(self.netD, init_type=opt.net.init_type, init_gain=opt.net.init_gain)
             # configure transformer
             self.SpatialTransformer = SpatialTransformer(opt.data.patch_image_shape).to(self.device)
            
@@ -87,7 +94,7 @@ class RegGANModel(nn.Module):
 
         return input_data, target_data, patient_id, data_mapping
     
-    def forward(self, input, target, epoch):
+    def forward(self, input, target, iter):
         self.real_A = input.to(self.device)  # 输入的真实图像A
         self.real_B = target.to(self.device)  # 目标的真实图像B
 
@@ -100,7 +107,7 @@ class RegGANModel(nn.Module):
         fake_AB = torch.cat((self.real_A, self.fake_B), 1)
         
         ##1️⃣ 更新判别器（D）
-        if epoch > self.warm_epoch:
+        if (iter%self.warm_iter)==0:
             self.optimizer_D.zero_grad()
             # 计算假图像的判别结果
             pred_fake = self.netD(fake_AB.detach(), isDetach=True)  # 使用detach避免计算梯度
@@ -114,15 +121,16 @@ class RegGANModel(nn.Module):
             self.loss_D.backward()
             self.optimizer_D.step()
         else:
-            self.loss_D = torch.tensor(0.0, device=self.device)
-            self.loss_D_fake = torch.tensor(0.0, device=self.device)
-            self.loss_D_real = torch.tensor(0.0, device=self.device)
+            nan = float('nan')
+            self.loss_D      = torch.tensor(nan, device=self.device)
+            self.loss_D_fake = torch.tensor(nan, device=self.device)
+            self.loss_D_real = torch.tensor(nan, device=self.device)
 
         ##2️⃣ 更新生成器（G）更新配准器（R）
         self.optimizer_G.zero_grad()
         self.optimizer_R.zero_grad()
         # 生成器的损失（针对假图像）
-        pred_fake = self.netD(fake_AB, isDetach=True)
+        pred_fake = self.netD(fake_AB, isDetach=False)
         self.loss_G_GAN = self.criterionGAN(pred_fake, True)
         # 计算L1损失
         self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
