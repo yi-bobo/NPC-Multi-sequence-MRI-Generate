@@ -11,7 +11,7 @@ train:   # 训练参数
   epoch_start: 0  # 起始训练轮数
   save_freq: 10  # 保存间隔
   val_freq: 30  # 验证间隔
-  log_freq: 100  # 日志记录间隔
+  log_freq: 10  # 日志记录间隔
   model_name: ""
 
 val:
@@ -33,25 +33,30 @@ data:   # 数据参数
   num_random_crops: 16
 
 loss:   # 损失函数参数
-  gan_mode: "vanilla"  # GAN模式
-  lambda_L1: 20.0  # L1损失权重
-  lambda_GAN: 1.0   # GAN损失权重
+  gan_mode: "lsgan"  # GAN模式
+  lambda_GAN: 30.0   # GAN损失权重
+  lambda_SR: 20.0
+  lambda_SM: 10.0
+  warm_epoch: 50  # 预热轮数
 
 optim_G:  # 生成器优化器参数
   optim_mode: "Adam"  # 生成器优化器
   scheduler_mode: "CosineAnnealingLR_Warmup"  # 生成器学习率调度器
-  lr: 0.0002  # 生成器学习率
+  lr: 0.0001  # 生成器学习率
   beta_start: 0.5  # 生成器Adam优化器beta1
   beta_end: 0.999  # 生成器Adam优化器beta2
 
 optim_D:  # 判别器优化器参数
   optim_mode: "Adam"  # 判别器优化器
   scheduler_mode: "CosineAnnealingLR_Warmup"  # 判别器学习率调度器
-  lr: 0.0002  # 判别器学习率
+  lr: 0.00001  # 判别器学习率
   beta_start: 0.5  # 判别器Adam优化器beta1
   beta_end: 0.999  # 判别器Adam优化器beta2
 
 net:
+  init_type: "xavier"  # 网络初始化方式
+  init_gain: 0.02  # 网络初始化增益
+
   G: # 生成网络参数
     dims: 3   # 维度
     input_nc: 1    # 输入通道数
@@ -61,7 +66,7 @@ net:
 
   D: # 判别网络参数
     input_nc: 2    # 输入通道数
-    ndf: 64        # 通道数
+    ndf: 32        # 通道数
     n_layers: 3    # 层数
     dims: 3       # 维度
 

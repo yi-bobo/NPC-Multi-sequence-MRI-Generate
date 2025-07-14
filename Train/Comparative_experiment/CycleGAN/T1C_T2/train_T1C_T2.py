@@ -235,8 +235,9 @@ def main():
             loss_sums = {key: loss_sums[key] + loss_dict[key] for key in loss_dict.keys()}
             # 累加每个损失函数的值
             if i % opt.train.log_freq == 0:
-                lr = model.optimizer_G.param_groups[0]['lr']
-                train_str = f"epoch:{epoch}|{opt.train.max_epochs}; batch:{i+1}/{len(train_loader)}; Lr:{lr:.7f}; " + ", ".join([f"{key}:{value:.6f}" for key, value in loss_dict.items()])
+                lr_G = model.optimizer_G.param_groups[0]['lr']
+                lr_D = model.optimizer_D.param_groups[0]['lr']
+                train_str = f"epoch:{epoch}|{opt.train.max_epochs}; batch:{i+1}/{len(train_loader)}; Lr_G:{lr_G:.7f}; Lr_D:{lr_D:.7f}; " + ", ".join([f"{key}:{value:.6f}" for key, value in loss_dict.items()])
                 logging.info(train_str)
 
         # 计算平均损失并保存

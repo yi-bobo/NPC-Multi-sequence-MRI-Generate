@@ -57,7 +57,7 @@ def validate_model(model, val_loader, epoch, opt, best_metrics, model_components
 
     with torch.no_grad():
         for i, data in enumerate(val_loader):
-        # for i, data in zip(range(2), val_loader):
+        # for i, data in zip(range(20), val_loader):
 
             input, target, patient_id, data_mapping = model.set_input(data)
             input, target, pred_target, mae, ssim, psnr = model.val(input, target)
@@ -117,7 +117,7 @@ def validate_model(model, val_loader, epoch, opt, best_metrics, model_components
 
     return best_metrics
 
-def random_sliding_window_image(model, data, patch_size, iter):
+def random_sliding_window_image(model, data, patch_size, epoch):
     """
     对 3D 图像进行随机裁剪，并计算每个图像所有随机块的损失均值。
 
@@ -160,7 +160,7 @@ def random_sliding_window_image(model, data, patch_size, iter):
         target_patch = target_patch.to(input.device)
 
         # 计算单个块的损失
-        loss_dict = model(input_patch, target_patch, iter)
+        loss_dict = model(input_patch, target_patch, epoch)
 
         # 累加损失字典中的每项
         for key in loss_dict:
@@ -217,13 +217,14 @@ def main():
         loss_sums = defaultdict(lambda:0.0) # 初始化每个损失的累加值为0
 
         for i, data in enumerate(train_loader):
-        # for i, data in zip(range(2), train_loader):
-            loss_dict = random_sliding_window_image(model, data, opt.data.patch_image_shape, i)
+        # for i, data in zip(range(11), train_loader):
+            loss_dict = random_sliding_window_image(model, data, opt.data.patch_image_shape, epoch)
             loss_sums = {key: loss_sums[key] + loss_dict[key] for key in loss_dict.keys()}
             # 累加每个损失函数的值
             if i % opt.train.log_freq == 0:
-                lr = model.optimizer_G.param_groups[0]['lr']
-                train_str = f"epoch:{epoch}|{opt.train.max_epochs}; batch:{i+1}/{len(train_loader)}; Lr:{lr:.7f}; " + ", ".join([f"{key}:{value:.6f}" for key, value in loss_dict.items()])
+                lr_G = model.optimizer_G.param_groups[0]['lr']
+                lr_D = model.optimizer_D.param_groups[0]['lr']
+                train_str = f"epoch:{epoch}|{opt.train.max_epochs}; batch:{i+1}/{len(train_loader)}; Lr_G:{lr_G:.7f}; Lr_D:{lr_D:.7f}; " + ", ".join([f"{key}:{value:.6f}" for key, value in loss_dict.items()])
                 logging.info(train_str)
 
         # 计算平均损失并保存
@@ -233,9 +234,12 @@ def main():
         save_loss_csv(opt.path.train_avg_loss_csv_path, epoch,  ['epoch'] + list(avg_loss_dict.keys()), {'epoch': epoch, **avg_loss_dict})
 
         # 学习率调度与模型保存
-        model.warmUpScheduler_G.step()
-        model.warmUpScheduler_D.step()
-        model.warmUpScheduler_R.step()
+        model.scheduler_G.step()
+        model.scheduler_D.step()
+        model.scheduler_R.step()
+        # model.warmUpScheduler_G.step()
+        # model.warmUpScheduler_D.step()
+        # model.warmUpScheduler_R.step()
         save_model(model_components, epoch, opt.path.checkpoint_path_dir, file_name=f"latest.pth")
 
         # 验证模型

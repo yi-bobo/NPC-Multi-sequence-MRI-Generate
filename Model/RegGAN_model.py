@@ -27,12 +27,9 @@ class RegGANModel(nn.Module):
         self.multi_gpu = opt.train.multi_gpu  # 是否使用多 GPU
         self.device = opt.train.device  # 设备配置（GPU或CPU）
         self.isTrain = opt.train.is_train  # 是否是训练模式
-        self.lambda_L1 = opt.loss.lambda_L1  # L1损失的权重
         self.lambda_GAN = opt.loss.lambda_GAN  # GAN损失的权重
-        self.lambda_perc = opt.loss.lambda_perc  # 风格损失的权重
         self.lambda_SR = opt.loss.lambda_SR  # 超分辨损失的权重
         self.lambda_SM = opt.loss.lambda_SM  # 平滑损失的权重
-        self.warm_iter = opt.loss.warm_iter  # 预热轮数
 
         self.sour_name = opt.data.sour_img_name  # 源数据名称
         self.targ_name = opt.data.targ_img_name  # 目标数据名称
@@ -40,14 +37,14 @@ class RegGANModel(nn.Module):
         self.val_overlap = opt.val.overlap  # 验证时图像重叠的大小
 
         # 定义生成器（Generator）
-        self.netG = UNet(**(vars(opt.net.G)))  # 使用UNet网络作为生成器
+        self.netG = UNet(**(vars(opt.net.G))).to(self.device)  # 使用UNet网络作为生成器
         self.netG = init_net(self.netG, init_type=opt.net.init_type, init_gain=opt.net.init_gain)
             
         # 损失函数和优化器
         if self.isTrain:
             self.netR = Reg(opt.net.R, opt.data.patch_image_shape, int_downsize=2).to(self.device)
             self.netR = init_net(self.netR, init_type=opt.net.init_type, init_gain=opt.net.init_gain)
-            self.netD = NLayerDiscriminator(**(vars(opt.net.D)))  # 定义判别器（Discriminator）
+            self.netD = NLayerDiscriminator(**(vars(opt.net.D))).to(self.device)  # 定义判别器（Discriminator）
             self.netD = init_net(self.netD, init_type=opt.net.init_type, init_gain=opt.net.init_gain)
             # configure transformer
             self.SpatialTransformer = SpatialTransformer(opt.data.patch_image_shape).to(self.device)
@@ -56,21 +53,23 @@ class RegGANModel(nn.Module):
             self.criterionGAN = GANLoss(opt.loss.gan_mode).to(self.device)
             self.criterionL1 = nn.L1Loss().to(self.device)  # L1损失
             self.smoothing_loss = Grad('l2', loss_mult=2).loss
-            self.perceptual_loss = VGGLoss_3D(device=self.device)
             
             # 优化器和学习率调度器
             self.optimizer_G = torch.optim.AdamW(self.netG.parameters(), lr=opt.optim_G.lr, weight_decay=1e-4)
-            self.cosineScheduler_G = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_G, T_max=opt.train.max_epochs, eta_min=0, last_epoch=-1)
-            self.warmUpScheduler_G = GradualWarmupScheduler(self.optimizer_G, multiplier=2, warm_epoch=opt.train.max_epochs // 10 , 
-                                         after_scheduler=self.cosineScheduler_G)
+            self.scheduler_G = torch.optim.lr_scheduler.StepLR(self.optimizer_G, step_size=10, gamma=0.1)
+            # self.cosineScheduler_G = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_G, T_max=10, eta_min=0, last_epoch=-1)
+            # self.warmUpScheduler_G = GradualWarmupScheduler(self.optimizer_G, multiplier=2, warm_epoch=5 , 
+            #                              after_scheduler=self.cosineScheduler_G)
             self.optimizer_D = torch.optim.AdamW(self.netD.parameters(), lr=opt.optim_D.lr, weight_decay=1e-4)
-            self.cosineScheduler_D = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_D, T_max=opt.train.max_epochs, eta_min=0, last_epoch=-1)
-            self.warmUpScheduler_D = GradualWarmupScheduler(self.optimizer_D, multiplier=2, warm_epoch=opt.train.max_epochs // 10, 
-                                         after_scheduler=self.cosineScheduler_D)
+            self.scheduler_D = torch.optim.lr_scheduler.StepLR(self.optimizer_D, step_size=10, gamma=0.1)
+            # self.cosineScheduler_D = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_D, T_max=10, eta_min=0, last_epoch=-1)
+            # self.warmUpScheduler_D = GradualWarmupScheduler(self.optimizer_D, multiplier=2, warm_epoch=5, 
+            #                              after_scheduler=self.cosineScheduler_D)
             self.optimizer_R = torch.optim.AdamW(self.netR.parameters(), lr=opt.optim_G.lr, weight_decay=1e-4)
-            self.cosineScheduler_R = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_R, T_max=opt.train.max_epochs, eta_min=0, last_epoch=-1)
-            self.warmUpScheduler_R = GradualWarmupScheduler(self.optimizer_R, multiplier=2, warm_epoch=opt.train.max_epochs // 10, 
-                                         after_scheduler=self.cosineScheduler_R)
+            self.scheduler_R = torch.optim.lr_scheduler.StepLR(self.optimizer_R, step_size=10, gamma=0.1)
+            # self.cosineScheduler_R = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_R, T_max=10, eta_min=0, last_epoch=-1)
+            # self.warmUpScheduler_R = GradualWarmupScheduler(self.optimizer_R, multiplier=2, warm_epoch=5, 
+            #                              after_scheduler=self.cosineScheduler_R)
 
     def set_input(self, data):
         data_mapping = {
@@ -107,24 +106,18 @@ class RegGANModel(nn.Module):
         fake_AB = torch.cat((self.real_A, self.fake_B), 1)
         
         ##1️⃣ 更新判别器（D）
-        if (iter%self.warm_iter)==0:
-            self.optimizer_D.zero_grad()
-            # 计算假图像的判别结果
-            pred_fake = self.netD(fake_AB.detach(), isDetach=True)  # 使用detach避免计算梯度
-            self.loss_D_fake = self.criterionGAN(pred_fake, False)
-            # 计算真实图像的判别结果
-            real_AB = torch.cat((self.real_A, self.real_B), 1)
-            pred_real = self.netD(real_AB, isDetach=False)
-            self.loss_D_real = self.criterionGAN(pred_real, True)
-            # 判别器的总损失
-            self.loss_D = (self.loss_D_fake + self.loss_D_real) * 0.5
-            self.loss_D.backward()
-            self.optimizer_D.step()
-        else:
-            nan = float('nan')
-            self.loss_D      = torch.tensor(nan, device=self.device)
-            self.loss_D_fake = torch.tensor(nan, device=self.device)
-            self.loss_D_real = torch.tensor(nan, device=self.device)
+        self.optimizer_D.zero_grad()
+        # 计算假图像的判别结果
+        pred_fake = self.netD(fake_AB.detach(), isDetach=True)  # 使用detach避免计算梯度
+        self.loss_D_fake = self.criterionGAN(pred_fake, False)
+        # 计算真实图像的判别结果
+        real_AB = torch.cat((self.real_A, self.real_B), 1)
+        pred_real = self.netD(real_AB, isDetach=False)
+        self.loss_D_real = self.criterionGAN(pred_real, True)
+        # 判别器的总损失
+        self.loss_D = (self.loss_D_fake + self.loss_D_real) * 0.5
+        self.loss_D.backward()
+        self.optimizer_D.step()
 
         ##2️⃣ 更新生成器（G）更新配准器（R）
         self.optimizer_G.zero_grad()
@@ -132,15 +125,11 @@ class RegGANModel(nn.Module):
         # 生成器的损失（针对假图像）
         pred_fake = self.netD(fake_AB, isDetach=False)
         self.loss_G_GAN = self.criterionGAN(pred_fake, True)
-        # 计算L1损失
-        self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
-        # 计算感知损失
-        self.loss_perc = self.perceptual_loss(self.fake_B.float(), self.real_B)
         # 计算对齐损失
         self.loss_SR = self.criterionL1(self.SysRegist_A2B, self.real_B)  
         self.loss_SM = self.smoothing_loss(Trans)
         # 计算总生成器损失
-        self.loss_G = self.lambda_GAN * self.loss_G_GAN + self.lambda_L1 * self.loss_G_L1 + self.lambda_perc * self.loss_perc + self.lambda_SR * self.loss_SR + self.lambda_SM * self.loss_SM
+        self.loss_G = self.lambda_GAN * self.loss_G_GAN + self.lambda_SR * self.loss_SR + self.lambda_SM * self.loss_SM
         self.loss_G.backward()
         self.optimizer_G.step()
         self.optimizer_R.step()
@@ -148,7 +137,6 @@ class RegGANModel(nn.Module):
         loss_dict = {
             'loss_G': self.loss_G.item(),
             'loss_G_GAN': self.loss_G_GAN.item(),
-            'loss_perc': self.loss_perc.item(),
             'loss_SR': self.loss_SR.item(),
             'loss_SM': self.loss_SM.item(),
             'loss_D': self.loss_D.item(),

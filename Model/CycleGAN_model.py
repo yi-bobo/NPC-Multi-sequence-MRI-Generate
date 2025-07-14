@@ -8,6 +8,8 @@ import torch.nn as nn
 from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
 
+from Utils.init_net_util import init_net
+
 from Model.Net.GAN_Net.UNet import UNet
 from Utils.loss.gan_loss import GANLoss
 from Utils.optim_util import GradualWarmupScheduler
@@ -41,13 +43,19 @@ class CycleGANModel(nn.Module):
         self.val_overlap = opt.val.overlap  # 验证时图像重叠的大小
 
         # 定义生成器（Generator）
-        self.netG_A2B = UNet(**(vars(opt.net.G)))  # 使用UNet网络作为生成器
-        self.netG_B2A = UNet(**(vars(opt.net.G)))  # 使用UNet网络作为生成器
+        self.netG_A2B = UNet(**(vars(opt.net.G))).to(self.device)  # 使用UNet网络作为生成器
+        self.netG_B2A = UNet(**(vars(opt.net.G))).to(self.device)  # 使用UNet网络作为生成器
+
+        self.netG_A2B = init_net(self.netG_A2B, init_type=opt.net.init_type, init_gain=opt.net.init_gain)  # 初始化生成器
+        self.netG_B2A = init_net(self.netG_B2A, init_type=opt.net.init_type, init_gain=opt.net.init_gain)  # 初始化生成器
             
         # 损失函数和优化器
         if self.isTrain:
-            self.netD_A2B = NLayerDiscriminator(**(vars(opt.net.D)))  # 定义判别器（Discriminator）
-            self.netD_B2A = NLayerDiscriminator(**(vars(opt.net.D)))  # 定义判别器（Discriminator）
+            self.netD_A2B = NLayerDiscriminator(**(vars(opt.net.D))).to(self.device)  # 定义判别器（Discriminator）
+            self.netD_B2A = NLayerDiscriminator(**(vars(opt.net.D))).to(self.device)  # 定义判别器（Discriminator）
+
+            self.netD_A2B = init_net(self.netD_A2B, init_type=opt.net.init_type, init_gain=opt.net.init_gain)  # 初始化判别器
+            self.netD_B2A = init_net(self.netD_B2A, init_type=opt.net.init_type, init_gain=opt.net.init_gain)  # 初始化判别器
            
             # GAN损失函数
             self.criterionGAN = GANLoss(opt.loss.gan_mode).to(self.device)
@@ -56,19 +64,22 @@ class CycleGANModel(nn.Module):
             # 优化器和学习率调度器
             self.optimizer_G = torch.optim.AdamW(itertools.chain(self.netG_A2B.parameters(), self.netG_B2A.parameters()), lr=opt.optim_G.lr, weight_decay=1e-4)
             self.optimizer_D = torch.optim.AdamW(itertools.chain(self.netD_A2B.parameters(), self.netD_B2A.parameters()), lr=opt.optim_D.lr, weight_decay=1e-4)
+            # 学习率调度器
+            self.scheduler_G = torch.optim.lr_scheduler.StepLR(self.optimizer_G, step_size=10, gamma=0.1)
+            self.scheduler_D = torch.optim.lr_scheduler.StepLR(self.optimizer_D, step_size=10, gamma=0.1)
 
-            scheduler_params = {
-                "T_max": opt.train.max_epochs, "eta_min": 0, "last_epoch": -1
-            }
-            warmup_epochs = 500
-            self.scheduler_G = GradualWarmupScheduler(
-                self.optimizer_G, multiplier=2, warm_epoch=warmup_epochs,
-                after_scheduler=torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_G, **scheduler_params)
-            )
-            self.scheduler_D = GradualWarmupScheduler(
-                self.optimizer_D, multiplier=2, warm_epoch=warmup_epochs,
-                after_scheduler=torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_D, **scheduler_params)
-            )
+            # scheduler_params = {
+            #     "T_max": opt.train.max_epochs, "eta_min": 0, "last_epoch": -1
+            # }
+            # warmup_epochs = 500
+            # self.scheduler_G = GradualWarmupScheduler(
+            #     self.optimizer_G, multiplier=2, warm_epoch=warmup_epochs,
+            #     after_scheduler=torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_G, **scheduler_params)
+            # )
+            # self.scheduler_D = GradualWarmupScheduler(
+            #     self.optimizer_D, multiplier=2, warm_epoch=warmup_epochs,
+            #     after_scheduler=torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_D, **scheduler_params)
+            # )
 
     def set_input(self, data):
         data_mapping = {
@@ -95,7 +106,6 @@ class CycleGANModel(nn.Module):
     def forward(self):
         with torch.amp.autocast('cuda'):
             self.fake_B = self.netG_A2B(self.real_A)
-        with torch.amp.autocast('cuda'):
             self.fake_A = self.netG_B2A(self.real_B)
 
     def optimize_parameters(self, input, target):
@@ -120,16 +130,16 @@ class CycleGANModel(nn.Module):
     def backward_D(self):
         with torch.cuda.amp.autocast():
             # 判别器 A2B
-            fake_AB = torch.cat((self.real_A, self.fake_B.detach()), 1)
+            fake_AB = torch.cat((self.real_A, self.fake_B), 1)
             real_AB = torch.cat((self.real_A, self.real_B), 1)
-            pred_fake = self.netD_A2B(fake_AB, isDetach=True)
+            pred_fake = self.netD_A2B(fake_AB.detach(), isDetach=False)
             pred_real = self.netD_A2B(real_AB, isDetach=True)
             self.loss_D_A2B = (self.criterionGAN(pred_fake, False) + self.criterionGAN(pred_real, True)) * 0.5
 
             # 判别器 B2A
-            fake_BA = torch.cat((self.real_B, self.fake_A.detach()), 1)
+            fake_BA = torch.cat((self.real_B, self.fake_A), 1)
             real_BA = torch.cat((self.real_B, self.real_A), 1)
-            pred_fake = self.netD_B2A(fake_BA, isDetach=True)
+            pred_fake = self.netD_B2A(fake_BA.detach(), isDetach=False)
             pred_real = self.netD_B2A(real_BA, isDetach=True)
             self.loss_D_B2A = (self.criterionGAN(pred_fake, False) + self.criterionGAN(pred_real, True)) * 0.5
 
@@ -151,19 +161,17 @@ class CycleGANModel(nn.Module):
             pred_fake = self.netD_A2B(fake_AB, isDetach=True)
             loss_G_A2B_GAN = self.criterionGAN(pred_fake, True)
             loss_G_A2B_L1 = self.criterionL1(self.fake_B, self.real_B)
-            loss_G_A2B = self.lambda_GAN * loss_G_A2B_GAN + self.lambda_L1 * loss_G_A2B_L1
 
             # 生成器 B2A
             fake_BA = torch.cat((self.real_B, self.fake_A), 1)
             pred_fake = self.netD_B2A(fake_BA, isDetach=True)
             loss_G_B2A_GAN = self.criterionGAN(pred_fake, True)
             loss_G_B2A_L1 = self.criterionL1(self.fake_A, self.real_A)
-            loss_G_B2A = self.lambda_GAN * loss_G_B2A_GAN + self.lambda_L1 * loss_G_B2A_L1
 
             # 合并损失
             self.loss_G_GAN = (loss_G_A2B_GAN + loss_G_B2A_GAN) * 0.5
             self.loss_G_L1 = (loss_G_A2B_L1 + loss_G_B2A_L1) * 0.5
-            self.loss_G = (loss_G_A2B + loss_G_B2A) * 0.5
+            self.loss_G = self.loss_G_GAN * self.lambda_GAN + self.loss_G_L1 * self.lambda_L1
 
             loss_dict = {
                 'loss_G':self.loss_G.item(),

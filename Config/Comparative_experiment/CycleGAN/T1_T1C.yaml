@@ -2,7 +2,7 @@ train:   # 训练参数
   multi_gpu: false  # 是否使用多GPU
   is_train: True  # 是否训练
   continue_train: false  # 是否接着上次训练
-  gpu: 0  # 使用GPU序号
+  gpu: 7  # 使用GPU序号
   batch_size: 8  # 批大小
   num_workers: 4  # 线程数
   seed: 1234  # 随机种子
@@ -11,7 +11,7 @@ train:   # 训练参数
   epoch_start: 0  # 起始训练轮数
   save_freq: 10  # 保存间隔
   val_freq: 30  # 验证间隔
-  log_freq: 100  # 日志记录间隔
+  log_freq: 10  # 日志记录间隔
   model_name: ""
 
 val:
@@ -33,25 +33,28 @@ data:   # 数据参数
   num_random_crops: 16
 
 loss:   # 损失函数参数
-  gan_mode: "vanilla"  # GAN模式
+  gan_mode: "lsgan"  # GAN模式
   lambda_L1: 20.0  # L1损失权重
   lambda_GAN: 1.0   # GAN损失权重
 
 optim_G:  # 生成器优化器参数
   optim_mode: "Adam"  # 生成器优化器
   scheduler_mode: "CosineAnnealingLR_Warmup"  # 生成器学习率调度器
-  lr: 0.0002  # 生成器学习率
+  lr: 0.0001  # 生成器学习率
   beta_start: 0.5  # 生成器Adam优化器beta1
   beta_end: 0.999  # 生成器Adam优化器beta2
 
 optim_D:  # 判别器优化器参数
   optim_mode: "Adam"  # 判别器优化器
   scheduler_mode: "CosineAnnealingLR_Warmup"  # 判别器学习率调度器
-  lr: 0.0002  # 判别器学习率
+  lr: 0.00001  # 判别器学习率
   beta_start: 0.5  # 判别器Adam优化器beta1
   beta_end: 0.999  # 判别器Adam优化器beta2
 
 net:
+  init_type: "xavier"  # 网络初始化方式
+  init_gain: 0.02  # 网络初始化增益
+  
   G: # 生成网络参数
     dims: 3   # 维度
     input_nc: 1    # 输入通道数
