@@ -2,7 +2,7 @@ train:   # 训练参数
   multi_gpu: false  # 是否使用多GPU
   is_train: True  # 是否训练
   continue_train: false  # 是否接着上次训练
-  gpu: 0  # 使用GPU序号
+  gpu: 4  # 使用GPU序号
   batch_size: 8  # 批大小
   num_workers: 4  # 线程数
   seed: 1234  # 随机种子
