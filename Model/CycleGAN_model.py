@@ -12,7 +12,6 @@ from Utils.init_net_util import init_net
 
 from Model.Net.GAN_Net.UNet import UNet
 from Utils.loss.gan_loss import GANLoss
-from Utils.optim_util import GradualWarmupScheduler
 from .Net.GAN_Net.Discriminator import NLayerDiscriminator
 
 def set_requires_grad(nets, requires_grad=False):
@@ -36,6 +35,7 @@ class CycleGANModel(nn.Module):
         self.isTrain = opt.train.is_train  # 是否是训练模式
         self.lambda_L1 = opt.loss.lambda_L1  # L1损失的权重
         self.lambda_GAN = opt.loss.lambda_GAN  # GAN损失的权重
+        self.lambda_cycle = opt.loss.lambda_cycle
 
         self.sour_name = opt.data.sour_img_name  # 源数据名称
         self.targ_name = opt.data.targ_img_name  # 目标数据名称
@@ -48,6 +48,10 @@ class CycleGANModel(nn.Module):
 
         self.netG_A2B = init_net(self.netG_A2B, init_type=opt.net.init_type, init_gain=opt.net.init_gain)  # 初始化生成器
         self.netG_B2A = init_net(self.netG_B2A, init_type=opt.net.init_type, init_gain=opt.net.init_gain)  # 初始化生成器
+
+        if self.multi_gpu:
+            self.netG_A2B = nn.DataParallel(self.netG_A2B)
+            self.netG_B2A = nn.DataParallel(self.netG_B2A)
             
         # 损失函数和优化器
         if self.isTrain:
@@ -56,6 +60,10 @@ class CycleGANModel(nn.Module):
 
             self.netD_A2B = init_net(self.netD_A2B, init_type=opt.net.init_type, init_gain=opt.net.init_gain)  # 初始化判别器
             self.netD_B2A = init_net(self.netD_B2A, init_type=opt.net.init_type, init_gain=opt.net.init_gain)  # 初始化判别器
+
+            if self.multi_gpu:
+                self.netD_A2B = nn.DataParallel(self.netD_A2B)
+                self.netD_B2A = nn.DataParallel(self.netD_B2A)
            
             # GAN损失函数
             self.criterionGAN = GANLoss(opt.loss.gan_mode).to(self.device)
@@ -65,8 +73,8 @@ class CycleGANModel(nn.Module):
             self.optimizer_G = torch.optim.AdamW(itertools.chain(self.netG_A2B.parameters(), self.netG_B2A.parameters()), lr=opt.optim_G.lr, weight_decay=1e-4)
             self.optimizer_D = torch.optim.AdamW(itertools.chain(self.netD_A2B.parameters(), self.netD_B2A.parameters()), lr=opt.optim_D.lr, weight_decay=1e-4)
             # 学习率调度器
-            self.scheduler_G = torch.optim.lr_scheduler.StepLR(self.optimizer_G, step_size=10, gamma=0.8)
-            self.scheduler_D = torch.optim.lr_scheduler.StepLR(self.optimizer_D, step_size=10, gamma=0.8)
+            self.scheduler_G = torch.optim.lr_scheduler.StepLR(self.optimizer_G, step_size=10, gamma=0.5)
+            self.scheduler_D = torch.optim.lr_scheduler.StepLR(self.optimizer_D, step_size=10, gamma=0.5)
 
 
     def set_input(self, data):
@@ -91,83 +99,66 @@ class CycleGANModel(nn.Module):
 
         return input_data, target_data, patient_id, data_mapping
     
-    def forward(self):
+    def forward(self, input, target):
+        self.real_A = input  # 源图像
+        self.real_B = target  # 目标图像
+        # 0️⃣生成器生成假图像
         with torch.amp.autocast('cuda'):
             self.fake_B = self.netG_A2B(self.real_A)
             self.fake_A = self.netG_B2A(self.real_B)
+            self.rec_B = self.netG_A2B(self.fake_A)
+            self.rec_A = self.netG_B2A(self.fake_B)
 
-    def optimize_parameters(self, input, target):
-        self.real_A = input
-        self.real_B = target
-        self.forward()
-
-        # 更新判别器
-        set_requires_grad([self.netD_A2B, self.netD_B2A], True)
-        self.optimizer_D.zero_grad(set_to_none=True)
-        loss_dict = self.backward_D()
+        fake_AB = torch.cat((self.real_A, self.fake_B), 1)  # 拼接源图像和生成的目标图像
+        fake_BA = torch.cat((self.real_B, self.fake_A), 1)
+        real_AB = torch.cat((self.real_A, self.real_B), 1)  # 拼接源图像和目标图像
+        real_BA = torch.cat((self.real_B, self.real_A), 1)
+        
+        #1️⃣更新判别器
+        self.optimizer_D.zero_grad()
+        ## 判别器 A2B
+        pred_fake_A2B = self.netD_A2B(fake_AB.detach(), isDetach=True)  # 判别器对生成的目标图像进行预测
+        pred_real_A2B = self.netD_A2B(real_AB, isDetach=False)  # 判别器对真实的目标图像进行预测
+        self.loss_D_A2B = (self.criterionGAN(pred_fake_A2B, False) + self.criterionGAN(pred_real_A2B, True)) / 2.0
+        ## 判别器 B2A
+        pred_fake_B2A = self.netD_B2A(fake_BA.detach(), isDetach=True)  # 判别器对生成的源图像进行预测
+        pred_real_B2A = self.netD_B2A(real_BA, isDetach=False)  # 判别器对真实的源
+        self.loss_D_B2A = (self.criterionGAN(pred_fake_B2A, False) + self.criterionGAN(pred_real_B2A, True)) / 2.0
+        # 判别器总损失
+        self.loss_D = (self.loss_D_A2B + self.loss_D_B2A) * 0.5
+        self.loss_D.backward()
         self.optimizer_D.step()
 
-        # 更新生成器
-        set_requires_grad([self.netD_A2B, self.netD_B2A], False)
-        self.optimizer_G.zero_grad(set_to_none=True)
-        loss_dict.update(self.backward_G())
+        # 2️⃣更新生成器
+        self.optimizer_G.zero_grad()
+        ## 生成器 A2B
+        pred_fake_A2B = self.netD_A2B(fake_AB.detach(), isDetach=True)  # 判别器对生成的目标图像进行预测
+        loss_G_GAN_A2B = self.criterionGAN(pred_fake_A2B, True)  # GAN损失
+        loss_G_L1_A2B = self.criterionL1(self.fake_B, self.real_B)  # L1损失
+        loss_G_cycle_A2B = self.criterionL1(self.rec_B, self.real_B)  # 循环一致性损失
+        self.loss_G_A2B = loss_G_GAN_A2B * self.lambda_GAN + loss_G_L1_A2B * self.lambda_L1 + loss_G_cycle_A2B * self.lambda_cycle
+        ## 生成器 B2A
+        pred_fake_B2A = self.netD_B2A(fake_BA.detach(), isDetach=True)  # 判别器对生成的源图像进行预测
+        loss_G_GAN_B2A = self.criterionGAN(pred_fake_B2A, True)  # GAN损失
+        loss_G_L1_B2A = self.criterionL1(self.fake_A, self.real_A)  # L1损失
+        loss_G_cycle_B2A = self.criterionL1(self.rec_A, self.real_A)  # 循环一致性损失
+        self.loss_G_B2A = loss_G_GAN_B2A * self.lambda_GAN + loss_G_L1_B2A * self.lambda_L1 + loss_G_cycle_B2A * self.lambda_cycle
+        # 合并损失
+        self.loss_G = (self.loss_G_A2B + self.loss_G_B2A) * 0.5
+        self.loss_G.backward()
         self.optimizer_G.step()
 
-        return loss_dict
+        loss_dict = {
+            'loss_G': self.loss_G.item(),
+            'loss_G_GAN': (loss_G_GAN_A2B + loss_G_GAN_B2A)/2,
+            'loss_G_L1': (loss_G_L1_A2B + loss_G_L1_B2A)/2,
+            'loss_G_cycle': (loss_G_cycle_A2B + loss_G_cycle_B2A)/2,
+            'loss_D': self.loss_D.item(),
+            'loss_D_A2B': self.loss_D_A2B.item(),
+            'loss_D_B2A': self.loss_D_B2A.item(),
+        }
 
-    def backward_D(self):
-        with torch.cuda.amp.autocast():
-            # 判别器 A2B
-            fake_AB = torch.cat((self.real_A, self.fake_B), 1)
-            real_AB = torch.cat((self.real_A, self.real_B), 1)
-            pred_fake = self.netD_A2B(fake_AB.detach(), isDetach=False)
-            pred_real = self.netD_A2B(real_AB, isDetach=True)
-            self.loss_D_A2B = (self.criterionGAN(pred_fake, False) + self.criterionGAN(pred_real, True)) * 0.5
 
-            # 判别器 B2A
-            fake_BA = torch.cat((self.real_B, self.fake_A), 1)
-            real_BA = torch.cat((self.real_B, self.real_A), 1)
-            pred_fake = self.netD_B2A(fake_BA.detach(), isDetach=False)
-            pred_real = self.netD_B2A(real_BA, isDetach=True)
-            self.loss_D_B2A = (self.criterionGAN(pred_fake, False) + self.criterionGAN(pred_real, True)) * 0.5
-
-            # 判别器总损失
-            self.loss_D = (self.loss_D_A2B + self.loss_D_B2A) * 0.5
-            loss_dict = {
-                'loss_D':self.loss_D.item(),
-                'loss_D_A2B':self.loss_D_A2B.item(),
-                'loss_D_B2A':self.loss_D_B2A.item(),
-            }
-
-        self.loss_D.backward()
-        return loss_dict
-
-    def backward_G(self):
-        with torch.cuda.amp.autocast():
-            # 生成器 A2B
-            fake_AB = torch.cat((self.real_A, self.fake_B), 1)
-            pred_fake = self.netD_A2B(fake_AB, isDetach=True)
-            loss_G_A2B_GAN = self.criterionGAN(pred_fake, True)
-            loss_G_A2B_L1 = self.criterionL1(self.fake_B, self.real_B)
-
-            # 生成器 B2A
-            fake_BA = torch.cat((self.real_B, self.fake_A), 1)
-            pred_fake = self.netD_B2A(fake_BA, isDetach=True)
-            loss_G_B2A_GAN = self.criterionGAN(pred_fake, True)
-            loss_G_B2A_L1 = self.criterionL1(self.fake_A, self.real_A)
-
-            # 合并损失
-            self.loss_G_GAN = (loss_G_A2B_GAN + loss_G_B2A_GAN) * 0.5
-            self.loss_G_L1 = (loss_G_A2B_L1 + loss_G_B2A_L1) * 0.5
-            self.loss_G = self.loss_G_GAN * self.lambda_GAN + self.loss_G_L1 * self.lambda_L1
-
-            loss_dict = {
-                'loss_G':self.loss_G.item(),
-                'loss_G_GAN':self.loss_G_GAN.item(),
-                'loss_G_L1':self.loss_G_L1.item(),
-            }
-
-        self.loss_G.backward()
         return loss_dict
 
     def val(self, input, target):

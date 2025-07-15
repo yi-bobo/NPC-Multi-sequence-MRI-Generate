@@ -1,9 +1,9 @@
 train:   # 训练参数
-  multi_gpu: false  # 是否使用多GPU
+  multi_gpu: true  # 是否使用多GPU
   is_train: True  # 是否训练
   continue_train: false  # 是否接着上次训练
-  gpu: 4  # 使用GPU序号
-  batch_size: 8  # 批大小
+  gpu: 0,1  # 使用GPU序号
+  batch_size: 4  # 批大小
   num_workers: 4  # 线程数
   seed: 1234  # 随机种子
   overlap: 0.75
@@ -11,7 +11,7 @@ train:   # 训练参数
   epoch_start: 0  # 起始训练轮数
   save_freq: 10  # 保存间隔
   val_freq: 30  # 验证间隔
-  log_freq: 10  # 日志记录间隔
+  log_freq: 1  # 日志记录间隔
   model_name: ""
 
 val:
@@ -34,8 +34,9 @@ data:   # 数据参数
 
 loss:   # 损失函数参数
   gan_mode: "lsgan"  # GAN模式
-  lambda_L1: 20.0  # L1损失权重
+  lambda_L1: 30.0  # L1损失权重
   lambda_GAN: 1.0   # GAN损失权重
+  lambda_cycle: 30.0  # 循环一致性损失权重
 
 optim_G:
   lr: 0.0001  # 生成器学习率

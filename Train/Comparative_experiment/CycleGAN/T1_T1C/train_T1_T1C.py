@@ -172,7 +172,7 @@ def random_sliding_window_image(model, data, patch_size, overlap):
         target_patch = target_patch.to(input.device)
 
         # 计算单个块的损失
-        loss_dict = model.optimize_parameters(input_patch, target_patch)
+        loss_dict = model(input_patch, target_patch)
 
         # 累加损失字典中的每项
         for key in loss_dict:
@@ -247,7 +247,7 @@ def main():
         save_loss_csv(opt.path.train_avg_loss_csv_path, epoch,  ['epoch'] + list(avg_loss_dict.keys()), {'epoch': epoch, **avg_loss_dict})
 
         # 学习率调度与模型保存
-        if lr_G > opt.optom_G.lr_min:
+        if lr_G > opt.optim_G.lr_min:
             model.scheduler_G.step()
             model.scheduler_D.step()
         save_model(model_components, epoch, opt.path.checkpoint_path_dir, file_name=f"latest.pth")
