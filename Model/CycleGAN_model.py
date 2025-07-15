@@ -65,21 +65,9 @@ class CycleGANModel(nn.Module):
             self.optimizer_G = torch.optim.AdamW(itertools.chain(self.netG_A2B.parameters(), self.netG_B2A.parameters()), lr=opt.optim_G.lr, weight_decay=1e-4)
             self.optimizer_D = torch.optim.AdamW(itertools.chain(self.netD_A2B.parameters(), self.netD_B2A.parameters()), lr=opt.optim_D.lr, weight_decay=1e-4)
             # 学习率调度器
-            self.scheduler_G = torch.optim.lr_scheduler.StepLR(self.optimizer_G, step_size=10, gamma=0.1)
-            self.scheduler_D = torch.optim.lr_scheduler.StepLR(self.optimizer_D, step_size=10, gamma=0.1)
+            self.scheduler_G = torch.optim.lr_scheduler.StepLR(self.optimizer_G, step_size=10, gamma=0.8)
+            self.scheduler_D = torch.optim.lr_scheduler.StepLR(self.optimizer_D, step_size=10, gamma=0.8)
 
-            # scheduler_params = {
-            #     "T_max": opt.train.max_epochs, "eta_min": 0, "last_epoch": -1
-            # }
-            # warmup_epochs = 500
-            # self.scheduler_G = GradualWarmupScheduler(
-            #     self.optimizer_G, multiplier=2, warm_epoch=warmup_epochs,
-            #     after_scheduler=torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_G, **scheduler_params)
-            # )
-            # self.scheduler_D = GradualWarmupScheduler(
-            #     self.optimizer_D, multiplier=2, warm_epoch=warmup_epochs,
-            #     after_scheduler=torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_D, **scheduler_params)
-            # )
 
     def set_input(self, data):
         data_mapping = {

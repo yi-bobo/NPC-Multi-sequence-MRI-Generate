@@ -16,9 +16,6 @@ from Model.Net.RegGAN_Net.Blocks.transformer_block import SpatialTransformer
 
 from Utils.loss.grad_loss import Grad
 from Utils.loss.gan_loss import GANLoss
-from Utils.loss.perceptual_loss import VGGLoss_3D
-
-from Utils.optim_util import GradualWarmupScheduler
 
 
 class RegGANModel(nn.Module):
@@ -57,19 +54,10 @@ class RegGANModel(nn.Module):
             # 优化器和学习率调度器
             self.optimizer_G = torch.optim.AdamW(self.netG.parameters(), lr=opt.optim_G.lr, weight_decay=1e-4)
             self.scheduler_G = torch.optim.lr_scheduler.StepLR(self.optimizer_G, step_size=10, gamma=0.1)
-            # self.cosineScheduler_G = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_G, T_max=10, eta_min=0, last_epoch=-1)
-            # self.warmUpScheduler_G = GradualWarmupScheduler(self.optimizer_G, multiplier=2, warm_epoch=5 , 
-            #                              after_scheduler=self.cosineScheduler_G)
             self.optimizer_D = torch.optim.AdamW(self.netD.parameters(), lr=opt.optim_D.lr, weight_decay=1e-4)
             self.scheduler_D = torch.optim.lr_scheduler.StepLR(self.optimizer_D, step_size=10, gamma=0.1)
-            # self.cosineScheduler_D = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_D, T_max=10, eta_min=0, last_epoch=-1)
-            # self.warmUpScheduler_D = GradualWarmupScheduler(self.optimizer_D, multiplier=2, warm_epoch=5, 
-            #                              after_scheduler=self.cosineScheduler_D)
             self.optimizer_R = torch.optim.AdamW(self.netR.parameters(), lr=opt.optim_G.lr, weight_decay=1e-4)
             self.scheduler_R = torch.optim.lr_scheduler.StepLR(self.optimizer_R, step_size=10, gamma=0.1)
-            # self.cosineScheduler_R = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_R, T_max=10, eta_min=0, last_epoch=-1)
-            # self.warmUpScheduler_R = GradualWarmupScheduler(self.optimizer_R, multiplier=2, warm_epoch=5, 
-            #                              after_scheduler=self.cosineScheduler_R)
 
     def set_input(self, data):
         data_mapping = {

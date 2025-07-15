@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 # 自定义模块导入
 warnings.filterwarnings('ignore')    # 忽略警告
 sys.path.append('/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/')
-from Model.CycleGAN_model import CycleGANModel
+from Model.Seg_nnUnet import SegDynUNet
 from Dataset.patch_dataset import npy_3D_dataset
 from Utils.path_util import create_directories
 from Utils.config_util import load_yaml_config, log_namespace
@@ -53,57 +53,45 @@ def initialize_dataloader(opt):
 def validate_model(model, val_loader, epoch, opt, best_metrics, model_components):
     """验证模型"""
     logging.info(f"😃开始验证epoch{epoch}模型")
-    mae_targ_list, ssim_targ_list, psnr_targ_list = [], [], []
-    mae_input_list, ssim_input_list, psnr_input_list = [], [], []
+    dice_list, iou_list, precision_list = [], [], []
 
     with torch.no_grad():
         for i, data in enumerate(val_loader):
         # for i, data in zip(range(2), val_loader):
 
-            input, target, patient_id, data_mapping = model.set_input(data)
-            input, target, pred_target, pred_input, mae_targ, SSIM_targ, PSNR_targ, mae_input, SSIM_input, PSNR_input = model.val(input, target)
+            input, mask, patient_id = model.set_input(data)
+            input, mask,  pred_mask, dice, iou, precison = model.val(input, mask)
             
-            mae_targ_list.append(mae_targ)
-            ssim_targ_list.append(SSIM_targ)
-            psnr_targ_list.append(PSNR_targ)
-            mae_input_list.append(mae_input)
-            ssim_input_list.append(SSIM_input)
-            psnr_input_list.append(PSNR_input)
+            dice_list.append(dice)
+            iou_list.append(iou)
+            precision_list.append(precison)
 
             # 保存单个样本验证结果
-            val_cal_dict = {'patient_id': patient_id, 'MAE_targ': mae_targ, 'SSIM_targ': SSIM_targ, 'PSNR_targ': PSNR_targ, 
-                            'MAE_input': mae_input, 'SSIM_input': SSIM_input, 'PSNR_input': PSNR_input}
+            val_cal_dict = {'patient_id': patient_id, 'Dice': dice, 'IoU': iou, 'Precision': precison}
             logging.info(f"验证集epoch_{epoch}模型的patient_id:{patient_id}的验证结果:"
-                         f"MAE_targ:{mae_targ:.4f}, SSIM_targ:{SSIM_targ:.4f}, PSNR_targ:{PSNR_targ:.4f}, "
-                         f"MAE_input:{mae_input:.4f}, SSIM_input:{SSIM_input:.4f}, PSNR_input:{PSNR_input:.4f}")
+                         f"Dice:{dice:.4f}, IoU:{iou:.4f}, Precision:{precison:.4f}, ")
             save_loss_csv(
                 file_path=opt.path.val_metric_csv_path,
                 epoch=epoch,
-                header=['patient_id', 'MAE_targ', 'SSIM_targ', 'PSNR_targ', 'MAE_input', 'SSIM_input', 'PSNR_input'],
+                header=['patient_id', 'Dice', 'IoU', 'Precision'],
                 loss_dict=val_cal_dict
             )
 
             # save_path_dir = os.path.join(opt.path.img_path_dir, 'val', f"epoch_{epoch}", patient_id)
             # os.makedirs(save_path_dir, exist_ok=True)
-            # model.plot(input, target, pred_target, data_mapping, save_path_dir)
+            # model.plot(input, mask,  pred_mask, save_path_dir)
 
     # 计算验证集平均值与标准差
     metrics_avg = {
-        'MAE_targ': (np.mean(mae_targ_list), np.std(mae_targ_list)),
-        'SSIM_targ': (np.mean(ssim_targ_list), np.std(ssim_targ_list)),
-        'PSNR_targ': (np.mean(psnr_targ_list), np.std(psnr_targ_list)),
-        'MAE_input': (np.mean(mae_input_list), np.std(mae_input_list)),
-        'SSIM_input': (np.mean(ssim_input_list), np.std(ssim_input_list)),
-        'PSNR_input': (np.mean(psnr_input_list), np.std(psnr_input_list)),
+        'Dice': (np.mean(dice_list), np.std(dice_list)),
+        'IoU': (np.mean(iou_list), np.std(iou_list)),
+        'Precision': (np.mean(precision_list), np.std(precision_list)),
         }
     # 格式化输出结果
     metrics_str = (
-        f"MAE_targ: {metrics_avg['MAE_targ'][0]:.6f} ± {metrics_avg['MAE_targ'][1]:.6f}, "
-        f"SSIM_targ: {metrics_avg['SSIM_targ'][0]:.6f} ± {metrics_avg['SSIM_targ'][1]:.6f}, "
-        f"PSNR_targ: {metrics_avg['PSNR_targ'][0]:.6f} ± {metrics_avg['PSNR_targ'][1]:.6f}, "
-        f"MAE_input: {metrics_avg['MAE_input'][0]:.6f} ± {metrics_avg['MAE_input'][1]:.6f}, "
-        f"SSIM_input: {metrics_avg['SSIM_input'][0]:.6f} ± {metrics_avg['SSIM_input'][1]:.6f}, "
-        f"PSNR_input: {metrics_avg['PSNR_input'][0]:.6f} ± {metrics_avg['PSNR_input'][1]:.6f}"
+        f"Dice: {metrics_avg['Dice'][0]:.6f} ± {metrics_avg['Dice'][1]:.6f}, "
+        f"IoU: {metrics_avg['IoU'][0]:.6f} ± {metrics_avg['IoU'][1]:.6f}, "
+        f"Precision: {metrics_avg['Precision'][0]:.6f} ± {metrics_avg['Precision'][1]:.6f}"
     )
     logging.info(f"验证集epoch_{epoch}模型的验证结果: {metrics_str}")
     
@@ -111,7 +99,7 @@ def validate_model(model, val_loader, epoch, opt, best_metrics, model_components
     save_loss_csv(
         file_path=opt.path.val_avg_metric_csv_path,
         epoch=epoch,
-        header=['epoch', 'MAE_targ', 'SSIM_targ', 'PSNR_targ', 'MAE_input', 'SSIM_input', 'PSNR_input'],
+        header=['epoch', 'Dice', 'IoU', 'Precision'],
         loss_dict={key: f"{val[0]:.4f} ± {val[1]:.4f}" for key, val in metrics_avg.items()}
     )
 
@@ -129,7 +117,7 @@ def validate_model(model, val_loader, epoch, opt, best_metrics, model_components
 
     return best_metrics
 
-def random_sliding_window_image(model, data, patch_size, overlap):
+def random_sliding_window_image(model, data, patch_size):
     """
     对 3D 图像进行随机裁剪，并计算每个图像所有随机块的损失均值。
 
@@ -145,7 +133,7 @@ def random_sliding_window_image(model, data, patch_size, overlap):
         avg_loss_dict (dict): 所有随机块的损失字典均值。
     """
     # 提取模型输入
-    input, target, _, _ = model.set_input(data)
+    input, target, _,  = model.set_input(data)
 
     b, c, d, h, w = input.shape
     patch_d, patch_h, patch_w = patch_size
@@ -172,7 +160,7 @@ def random_sliding_window_image(model, data, patch_size, overlap):
         target_patch = target_patch.to(input.device)
 
         # 计算单个块的损失
-        loss_dict = model.optimize_parameters(input_patch, target_patch)
+        loss_dict = model(input_patch, target_patch)
 
         # 累加损失字典中的每项
         for key in loss_dict:
@@ -185,7 +173,7 @@ def random_sliding_window_image(model, data, patch_size, overlap):
 
 def main():
     # 1️⃣ 加载配置
-    config_path = "./Config/Comparative_experiment/CycleGAN/T1C_T2.yaml"
+    config_path = "./Config/downstream_experiment/Tumor_segment/T1.yaml"
     opt = load_yaml_config(config_path)
 
     # 1.1 设置随机种子与保存路径
@@ -212,16 +200,13 @@ def main():
     train_loader, val_loader, test_loader = initialize_dataloader(opt)
 
     # 5️⃣ 创建模型
-    model = CycleGANModel(opt).to(opt.train.device)
-    model_components = {'netG_A2B': model.netG_A2B.state_dict(), 'netG_B2A': model.netG_B2A.state_dict(),
-                         'netD_A2B': model.netD_A2B.state_dict(), 'netD_B2A': model.netD_B2A.state_dict(),
-                         'optimizer_G': model.optimizer_G.state_dict(), 'optimizer_D': model.optimizer_D.state_dict()}
+    model = SegDynUNet(opt).to(opt.train.device)
+    model_components = {'net': model.net.state_dict(), 'optimizer': model.optimizer.state_dict()}
     if opt.train.continue_train:
         logging.info("加载已保存模型参数")
-        val_model = {'netG_A2B': model.netG_A2B, 'netG_B2A': model.netG_B2A, 'netD_A2B': model.netD_A2B, 'netD_B2A': model.netD_B2A,
-                     'optimizer_G': model.optimizer_G, 'optimizer_D': model.optimizer_D}
+        val_model = {'net': model.net, 'optimizer': model.optimizer}
         opt.train.epoch_start = load_model(val_model, checkpoint_path=opt.path.checkpoint_path, device=opt.train.device)
-    best_metrics = {metric: 0 for metric in ['MAE_targ', 'SSIM_targ', 'PSNR_targ', 'MAE_input', 'SSIM_input', 'PSNR_input']}
+    best_metrics = {metric: 0 for metric in ['Dice', 'IoU', 'Precision']}  # 初始化最佳指标
 
     # 6️⃣ 开始训练
     logging.info("========== ⏳开始训练⏳ ==========")
@@ -230,14 +215,13 @@ def main():
         loss_sums = defaultdict(lambda:0.0) # 初始化每个损失的累加值为0
 
         for i, data in enumerate(train_loader):
-        # for i, data in zip(range(2), train_loader):
-            loss_dict = random_sliding_window_image(model, data, opt.data.patch_image_shape, opt.data.overlap)
+        # for i, data in zip(range(11), train_loader):
+            loss_dict = random_sliding_window_image(model, data, opt.data.patch_image_shape)
             loss_sums = {key: loss_sums[key] + loss_dict[key] for key in loss_dict.keys()}
             # 累加每个损失函数的值
             if i % opt.train.log_freq == 0:
-                lr_G = model.optimizer_G.param_groups[0]['lr']
-                lr_D = model.optimizer_D.param_groups[0]['lr']
-                train_str = f"epoch:{epoch}|{opt.train.max_epochs}; batch:{i+1}/{len(train_loader)}; Lr_G:{lr_G:.7f}; Lr_D:{lr_D:.7f}; " + ", ".join([f"{key}:{value:.6f}" for key, value in loss_dict.items()])
+                lr = model.optimizer.param_groups[0]['lr']
+                train_str = f"epoch:{epoch}|{opt.train.max_epochs}; batch:{i+1}/{len(train_loader)}; Lr:{lr:.7f}; " + ", ".join([f"{key}:{value:.6f}" for key, value in loss_dict.items()])
                 logging.info(train_str)
 
         # 计算平均损失并保存
@@ -247,9 +231,7 @@ def main():
         save_loss_csv(opt.path.train_avg_loss_csv_path, epoch,  ['epoch'] + list(avg_loss_dict.keys()), {'epoch': epoch, **avg_loss_dict})
 
         # 学习率调度与模型保存
-        if lr_G > opt.optom_G.lr_min:
-            model.scheduler_G.step()
-            model.scheduler_D.step()
+        model.scheduler.step()
         save_model(model_components, epoch, opt.path.checkpoint_path_dir, file_name=f"latest.pth")
 
         # 验证模型
