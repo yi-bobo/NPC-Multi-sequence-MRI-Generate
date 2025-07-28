@@ -339,3 +339,4 @@ class CrossAttnUpBlock(nn.Module):
             hidden_states = self.upsampler(hidden_states, temb)
 
         return hidden_states
+    

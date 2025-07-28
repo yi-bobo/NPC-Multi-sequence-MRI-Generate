@@ -172,7 +172,7 @@ def random_sliding_window_image(model, data, patch_size, overlap):
         target_patch = target_patch.to(input.device)
 
         # 计算单个块的损失
-        loss_dict = model.optimize_parameters(input_patch, target_patch)
+        loss_dict = model(input_patch, target_patch)
 
         # 累加损失字典中的每项
         for key in loss_dict:
@@ -215,11 +215,15 @@ def main():
     model = CycleGANModel(opt).to(opt.train.device)
     model_components = {'netG_A2B': model.netG_A2B.state_dict(), 'netG_B2A': model.netG_B2A.state_dict(),
                          'netD_A2B': model.netD_A2B.state_dict(), 'netD_B2A': model.netD_B2A.state_dict(),
-                         'optimizer_G': model.optimizer_G.state_dict(), 'optimizer_D': model.optimizer_D.state_dict()}
+                         'optimizer_G_A2B': model.optimizer_G_A2B.state_dict(), 'optimizer_D_A2B': model.optimizer_D_A2B.state_dict(),
+                         'optimizer_G_B2A': model.optimizer_G_B2A.state_dict(), 'optimizer_D_B2A': model.optimizer_D_B2A.state_dict()}
+                        #  'optimizer_G': model.optimizer_G.state_dict(), 'optimizer_D': model.optimizer_D.state_dict()}
     if opt.train.continue_train:
         logging.info("加载已保存模型参数")
         val_model = {'netG_A2B': model.netG_A2B, 'netG_B2A': model.netG_B2A, 'netD_A2B': model.netD_A2B, 'netD_B2A': model.netD_B2A,
-                     'optimizer_G': model.optimizer_G, 'optimizer_D': model.optimizer_D}
+                        'optimizer_G_A2B': model.optimizer_G_A2B, 'optimizer_D_A2B': model.optimizer_D_A2B,
+                        'optimizer_G_B2A': model.optimizer_G_B2A, 'optimizer_D_B2A': model.optimizer_D_B2A}
+                    #  'optimizer_G': model.optimizer_G, 'optimizer_D': model.optimizer_D}
         opt.train.epoch_start = load_model(val_model, checkpoint_path=opt.path.checkpoint_path, device=opt.train.device)
     best_metrics = {metric: 0 for metric in ['MAE_targ', 'SSIM_targ', 'PSNR_targ', 'MAE_input', 'SSIM_input', 'PSNR_input']}
 
@@ -235,8 +239,8 @@ def main():
             loss_sums = {key: loss_sums[key] + loss_dict[key] for key in loss_dict.keys()}
             # 累加每个损失函数的值
             if i % opt.train.log_freq == 0:
-                lr_G = model.optimizer_G.param_groups[0]['lr']
-                lr_D = model.optimizer_D.param_groups[0]['lr']
+                lr_G = model.optimizer_G_A2B.param_groups[0]['lr']
+                lr_D = model.optimizer_D_A2B.param_groups[0]['lr']
                 train_str = f"epoch:{epoch}|{opt.train.max_epochs}; batch:{i+1}/{len(train_loader)}; Lr_G:{lr_G:.7f}; Lr_D:{lr_D:.7f}; " + ", ".join([f"{key}:{value:.6f}" for key, value in loss_dict.items()])
                 logging.info(train_str)
 
@@ -247,9 +251,6 @@ def main():
         save_loss_csv(opt.path.train_avg_loss_csv_path, epoch,  ['epoch'] + list(avg_loss_dict.keys()), {'epoch': epoch, **avg_loss_dict})
 
         # 学习率调度与模型保存
-        if lr_G > opt.optim_G.lr_min:
-            model.scheduler_G.step()
-            model.scheduler_D.step()
         save_model(model_components, epoch, opt.path.checkpoint_path_dir, file_name=f"latest.pth")
 
         # 验证模型

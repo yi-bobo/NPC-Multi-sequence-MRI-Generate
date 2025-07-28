@@ -14,7 +14,6 @@ import torch.nn as nn
 from functools import partial
 import torch.nn.functional as F
 from torch.nn import DataParallel
-from monai.inferers import SlidingWindowInferer
 from transformers import CLIPTokenizer, CLIPModel
 
 from inspect import isfunction
@@ -22,13 +21,13 @@ from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
 
 from Utils.loss.perceptual_loss import VGGLoss_3D
-from Model.Net.Cycle_CPBM_Net.Cycle_CPBM_UNet import DiffusionModelUNet
+from Model.Net.BDBM_CC_Net.UNet import ConditionalDiffusionModelUNet
 from Utils.optim_util import create_optimizer,  GradualWarmupScheduler
 
 
 # region 辅助函数
 def creat_net(device, **kwargs):
-    net = DiffusionModelUNet(device=device, **kwargs)
+    net = ConditionalDiffusionModelUNet(device=device, **kwargs)
     return net
 
 def extract(a, t, x_shape):
@@ -127,21 +126,21 @@ class TextFeature(nn.Module):
 
 # region CBM_model
 
-class Cycle_CPBM_model(nn.Module):
+class BMBD_CC_model(nn.Module):
     def __init__(self, opt):
-        super(Cycle_CPBM_model, self).__init__()
+        super(BMBD_CC_model, self).__init__()
         self.is_train = opt.train.is_train
         self.device = opt.train.device
         self.multi_gpu = opt.train.multi_gpu  # 是否使用多 GPU
-        self.img_con_num = opt.net.con_img_channels  # 条件图像数量
+        self.img_con_num = opt.net.condition_image_in_channels  # 条件图像数量
         self.batch_size = opt.train.batch_size
         self.patch_size = opt.data.patch_image_shape  # 图像分块大小
         self.val_overlap = opt.val.overlap  # 重叠度
         self.sour_name = opt.data.sour_img_name  # 源域数据名称
         self.targ_name = opt.data.targ_img_name  # 目标域数据名称
-        self.img_con_name = opt.data.img_con_name  # 图像条件名称
-        self.is_text = opt.net.is_text  # 是否采用文本条件
-        self.is_img = opt.net.is_img  # 是否采用图像条件
+
+        self.is_text = opt.train.is_text  # 是否采用文本特征
+        self.is_img = opt.train.is_image# 是否采用图像特征
 
         self.is_perceptual = opt.loss.is_perceptual  # 是否采用感知损失
         self.loss_type = opt.loss.loss_type  # 损失类型
@@ -161,8 +160,6 @@ class Cycle_CPBM_model(nn.Module):
         self.eta = opt.ddbm.eta
 
         self.register_schedule()
-
-        self.infer = SlidingWindowInferer(roi_size=opt.data.patch_image_shape, sw_batch_size=opt.train.batch_size, overlap=opt.data.overlap)
 
         # 定义损失函数
         if self.loss_type == 'l1':
@@ -203,13 +200,15 @@ class Cycle_CPBM_model(nn.Module):
 
     def set_input(self, data):
         data_mapping = {
-            'T1': data[0],
-            'T1C': data[1],
-            'T1C_mask': data[2],
-            'T2': data[3],
-            'T2_mask': data[4],
+            'T1_data': data[0],
+            'T1_mask': data[1],
+            'T1_tumor': data[2],
+            'T1C_data': data[3],
+            'T1C_mask': data[4],
             'T1C_tumor': data[5],
-            'T2_tumor': data[6],
+            'T2_data': data[6],
+            'T2_mask': data[7],
+            'T2_tumor': data[8],
         }
 
         # 获取源数据和目标数据，并从 data_mapping 中移除
@@ -231,7 +230,18 @@ class Cycle_CPBM_model(nn.Module):
                     txt_con_mask[i, j] = 0  # 第 j 个条件文本缺失
     
         # 根据 self.img_con_num 动态获取条件图像
-        img_con_data_list = [data_mapping[name].to(self.device) for name in self.img_con_name]
+        if self.sour_name == 'T1_data' and self.targ_name == 'T1C_data':
+            img_con1 = torch.cat([data_mapping['T1_mask'], data_mapping['T1_tumor'], data_mapping['T2_data']], dim=1)
+            img_con2 = torch.cat([data_mapping['T1C_mask'], data_mapping['T1C_tumor'], data_mapping['T2_data']], dim=1)
+        elif self.sour_name == 'T1_data' and self.targ_name == 'T2_data':
+            img_con1 = torch.cat([data_mapping['T1_mask'], data_mapping['T1_tumor'], data_mapping['T1C_data']], dim=1)
+            img_con2 = torch.cat([data_mapping['T2_mask'], data_mapping['T2_tumor'], data_mapping['T1C_data']], dim=1)
+        elif self.sour_name == 'T1C_data' and self.targ_name == 'T2_data':
+            img_con1 = torch.cat([data_mapping['T1C_mask'], data_mapping['T1C_tumor'], data_mapping['T1_data']], dim=1)
+            img_con2 = torch.cat([data_mapping['T2_mask'], data_mapping['T2_tumor'], data_mapping['T1_data']], dim=1)
+        else:
+            raise NotImplementedError
+
         # 初始化 img_con_mask: [batch_size, img_con_num]
         img_con_mask = torch.ones(batch_size, self.img_con_num, device=self.device)  # 全 1 表示没有缺失
         # 随机设置每个条件图像是否缺失
@@ -239,20 +249,22 @@ class Cycle_CPBM_model(nn.Module):
             for j in range(self.img_con_num):
                 if random.random() < 0.2:  # 20% 概率缺失
                     img_con_mask[i, j] = 0  # 第 j 个条件图像缺失
-        # 应用 mask 到每个条件图像
-        img_con_data_list = [
-            img_con_data * img_con_mask[:, j].view(-1, 1, 1, 1, 1)
-            for j, img_con_data in enumerate(img_con_data_list)
-        ]
+        
         # 合并条件图像
-        img_con = torch.cat(img_con_data_list, dim=1)
         if not self.is_text:
             txt = None
         if not self.is_img:
-            img_con = None
-        data_mapping.pop('T1C_tumor')
-        data_mapping.pop('T2_tumor')
-        return x_0, x_T, txt, txt_con_mask, img_con, img_con_mask, patient_id, data_mapping
+            img_con1 = None
+            img_con2 = None
+        
+        data_true_save = {
+            'T1_data': data[0],
+            'T1C_data': data[3],
+            'T1C_mask': data[4],
+            'T2_data': data[6],
+            'T2_mask': data[7],
+        }
+        return x_0, x_T, txt, txt_con_mask, img_con1, img_con2, img_con_mask, patient_id, data_true_save
     
     def register_schedule(self):
         T = self.num_timesteps
@@ -322,11 +334,11 @@ class Cycle_CPBM_model(nn.Module):
     
     def backward_f(self, x_0, x_t, x_T, t, T, text_features=None, img_features=None):
         "x_T->x_0 "
-        pred_x0_from_xt = self.net_f(x_t, timesteps=t, text_features=text_features, img_features=img_features)
-        pred_x0_fron_xT = self.net_f(x_T, timesteps=T, text_features=text_features, img_features=img_features)
+        pred_x0_from_xt = self.net_f(x_t, timesteps=t, text_features=text_features, cond_image=img_features)
+        pred_x0_fron_xT = self.net_f(x_T, timesteps=T, text_features=text_features, cond_image=img_features)
         with torch.no_grad():
-            pred_xT_from_x0 = self.net_b(x_0.detach(), timesteps=T, text_features=text_features, img_features=img_features)
-        pred_x0_from_x0 = self.net_f(pred_xT_from_x0.detach(), timesteps=T, text_features=text_features, img_features=img_features)
+            pred_xT_from_x0 = self.net_b(x_0.detach(), timesteps=T, text_features=text_features, cond_image=img_features)
+        pred_x0_from_x0 = self.net_f(pred_xT_from_x0.detach(), timesteps=T, text_features=text_features, cond_image=img_features)
         
         loss_f_con = self.loss(pred_x0_from_xt, pred_x0_fron_xT)
         loss_f_rec_t = self.loss(pred_x0_from_xt, x_0)
@@ -356,11 +368,11 @@ class Cycle_CPBM_model(nn.Module):
         
     def backward_b(self, x_0, x_t, x_T, t, T, text_features=None, img_features=None):
         " x_0->x_T "
-        pred_xT_from_xt = self.net_b(x_t, timesteps=(T-t), text_features=text_features, img_features=img_features)
-        pred_xT_from_x0 = self.net_b(x_0, timesteps=T, text_features=text_features, img_features=img_features)
+        pred_xT_from_xt = self.net_b(x_t, timesteps=(T-t), text_features=text_features, cond_image=img_features)
+        pred_xT_from_x0 = self.net_b(x_0, timesteps=T, text_features=text_features, cond_image=img_features)
         with torch.no_grad():
-            pred_x0_from_xT = self.net_f(x_T.detach(), timesteps=T, text_features=text_features, img_features=img_features)
-        pred_xT_from_xT = self.net_b(pred_x0_from_xT.detach(), timesteps=T, text_features=text_features, img_features=img_features)
+            pred_x0_from_xT = self.net_f(x_T.detach(), timesteps=T, text_features=text_features, cond_image=img_features)
+        pred_xT_from_xT = self.net_b(pred_x0_from_xT.detach(), timesteps=T, text_features=text_features, cond_image=img_features)
 
         loss_b_con = self.loss(pred_xT_from_xt, pred_xT_from_x0)
         loss_b_rec_t = self.loss(pred_xT_from_xt, x_T)
@@ -395,7 +407,7 @@ class Cycle_CPBM_model(nn.Module):
             loss_names.append('loss_b_perceptual')
         return loss_names
     
-    def p_losses(self, x_0, x_T, t, T, text_con=None, img_con=None, noise=None):
+    def p_losses(self, x_0, x_T, t, T, text_con=None, img_con1=None, img_con2=None, noise=None):
         noise = default(noise, lambda: torch.randn_like(x_0))
         x_t = self.q_sample(x_0, x_T, t, noise)
 
@@ -408,13 +420,13 @@ class Cycle_CPBM_model(nn.Module):
 
         # 1️⃣ 计算 net_f 的损失
         # x_T -> x_0
-        loss_f, loss_f_dict = self.backward_f(x_0, x_t, x_T, t, T, text_features, img_con)
-        # torch.cuda.empty_cache()  # 清理 CUDA 缓存，释放内存
+        loss_f, loss_f_dict = self.backward_f(x_0, x_t, x_T, t, T, text_features, img_con2)
+        torch.cuda.empty_cache()  # 清理 CUDA 缓存，释放内存
 
         # 2️⃣ 计算 net_b 的损失
         # x_0 -> x_T
-        loss_b, loss_b_dict = self.backward_b(x_0, x_t, x_T, t, T, text_features, img_con)
-        # torch.cuda.empty_cache()  # 再次清理 CUDA 缓存
+        loss_b, loss_b_dict = self.backward_b(x_0, x_t, x_T, t, T, text_features, img_con1)
+        torch.cuda.empty_cache()  # 再次清理 CUDA 缓存
 
         # 总损失
         loss = loss_f + loss_b
@@ -426,11 +438,12 @@ class Cycle_CPBM_model(nn.Module):
     
     def forward(self, x_0, x_T, 
                 text_con:torch.Tensor = None, 
-                img_con:torch.Tensor = None,): 
+                img_con1:torch.Tensor = None,
+                img_con2:torch.Tensor = None,): 
         t = torch.randint(0, self.num_timesteps-1, (x_0.shape[0],), device=self.device).long()
         T = torch.full((x_0.shape[0],), self.num_timesteps - 1, device=self.device).long()
         self.optimizer.zero_grad()
-        loss, loss_dict = self.p_losses(x_0, x_T, t=t, T=T, text_con=text_con, img_con=img_con)
+        loss, loss_dict = self.p_losses(x_0, x_T, t=t, T=T, text_con=text_con, img_con1=img_con1, img_con2=img_con2)
         self.optimizer.step()
         self.scheduler.step() 
         return loss.item(), loss_dict
@@ -442,117 +455,7 @@ class Cycle_CPBM_model(nn.Module):
 
         return pred_targ
     
-    def test_batch(self, sour_data, mode,
-                  txt_con: torch.Tensor = None, 
-                  img_con: torch.Tensor = None, 
-                  ):
-        # 使用单GPU的原始模型进行验证
-        if mode == 'f':
-            self.net = self.net_f_single
-        elif mode == 'b':
-            self.net = self.net_b_single
-        else:
-            raise ValueError('mode should be "f" or "b"')
         
-        self.net.eval()
-        
-        # 初始化预测结果张量和权重张量
-        pred_targ = torch.zeros_like(sour_data)
-        weight = torch.zeros_like(sour_data)  # 用于记录每个像素的加权次数
-        
-        # 验证时始终使用batch_size=4，不管是否多GPU
-        b = 4
-        
-        depth, height, width = sour_data.shape[2:]  # 提取深度、高度和宽度
-        d = self.img_d  # 每个块的深度大小
-        overlap = int(d * self.overlap)  # 将浮点数转换为整数
-        txt_con_batch = []
-        if self.is_text:
-            txt_con_batch = txt_con * b
-
-        # 生成 d_start_list：所有分块的起始深度索引
-        d_start_list = []
-        for d_start in range(0, depth, d - overlap):
-            if d_start + d > depth:
-                d_start = depth - d  # 调整最后一块的起始位置
-            d_start_list.append(d_start)
-
-        # 去重，避免重复索引
-        d_start_list = list(dict.fromkeys(d_start_list))
-
-        # 计算批次数（向上取整）
-        batch_num = math.ceil(len(d_start_list) / b)
-
-        # 按批次处理分块
-        for i in range(batch_num):
-            # 获取当前批次的 d_start 列表
-            if (i+1)*b > (len(d_start_list)+1):
-                d_start_list_batch = d_start_list[len(d_start_list)-b:len(d_start_list)]
-            else:
-                d_start_list_batch = d_start_list[i * b : (i+1)*b]
-            while len(d_start_list_batch) < b:
-                d_start_list_batch.append(random.choice(d_start_list))
-            actual_batch_size = len(d_start_list_batch)  # 当前批次的实际大小
-
-            # 初始化批次张量
-            xT_batch = torch.zeros((actual_batch_size, 1, d, height, width), device=sour_data.device)
-            if self.is_img:
-                img_con_batch = torch.zeros((actual_batch_size, self.img_con_num, d, height, width), device=sour_data.device)
-
-            # 填充当前批次的输入
-            for j in range(actual_batch_size):
-                d_start = d_start_list_batch[j]
-                xT_batch[j, :, :, :, :] = sour_data[:, :, d_start : d_start + d, :, :]
-                if self.is_img:
-                    img_con_batch[j, :, :, :, :] = img_con[:, :, d_start : d_start + d, :, :]
-
-            text_features = self.text_feature_extraction(txt_con_batch)
-            # 推理当前批次
-            with torch.no_grad():
-                pred_targ_batch = self.p_sample_loop(xT_batch, text_features, img_con_batch, clip_denoised=True)
-                torch.cuda.empty_cache()
-
-            # 将生成结果拼接回预测张量
-            for j in range(actual_batch_size):
-                d_start = d_start_list_batch[j]
-                pred_targ[:, :, d_start : d_start + d, :, :] += pred_targ_batch[j, :, :, :, :]
-                weight[:, :, d_start : d_start + d, :, :] += 1
-
-        # 对重叠区域进行归一化
-        pred_targ /= weight
-
-        return pred_targ
-    
-    def test(self, x_0, x_T,
-            txt_con: torch.Tensor = None, 
-            img_con: torch.Tensor = None):
-        "x->y"
-        # 使用原始模型进行验证
-        self.net_f_single.eval()
-        self.net_b_single.eval()
-        
-        with torch.no_grad():
-            pred_x0 = self.test_batch(x_T, 'f', txt_con, img_con)
-            pred_xT = self.test_batch(x_0, 'b', txt_con, img_con)
-
-            pred_x0  = pred_x0.cpu().squeeze(0).squeeze(0).numpy()
-            pred_xT  = pred_xT.cpu().squeeze(0).squeeze(0).numpy()
-            x0  = x_0.cpu().squeeze(0).squeeze(0).numpy()
-            xT  = x_T.cpu().squeeze(0).squeeze(0).numpy()
-
-            data_range_x0 = max(pred_x0.max()-pred_x0.min(), x0.max()-x0.min())
-            mae_x0 = np.mean(np.abs(pred_x0 - x0))
-            ssim_x0 = ssim(pred_x0, x0, data_range=data_range_x0)
-            psnr_x0 = psnr(pred_x0, x0, data_range=data_range_x0)
-
-            data_range_xT = max(pred_xT.max()-pred_xT.min(), xT.max()-xT.min())
-            mae_xT = np.mean(np.abs(pred_xT - xT))
-            ssim_xT = ssim(pred_xT, xT, data_range=data_range_xT)
-            psnr_xT = psnr(pred_xT, xT, data_range=data_range_xT)
-
-        return x0, xT, pred_x0, pred_xT, mae_x0, ssim_x0, psnr_x0, mae_xT, ssim_xT, psnr_xT
-        
-    
     def val_batch(self, sour_data, mode,
                 txt_con: torch.Tensor = None, 
                 img_con: torch.Tensor = None):
@@ -655,13 +558,14 @@ class Cycle_CPBM_model(nn.Module):
     
     def val(self, x_0, x_T,
             txt_con: torch.Tensor = None, 
-            img_con: torch.Tensor = None):
+            img_con1: torch.Tensor = None,
+            img_con2: torch.Tensor = None):
         "x->y"
         self.net_f.eval()
         self.net_b.eval()
         with torch.no_grad():
-            pred_x0 = self.val_batch(x_T, 'f', txt_con, img_con)
-            pred_xT = self.val_batch(x_0, 'b', txt_con, img_con)
+            pred_x0 = self.val_batch(x_T, 'f', txt_con, img_con2)
+            pred_xT = self.val_batch(x_0, 'b', txt_con, img_con1)
 
             pred_x0  = pred_x0.cpu().squeeze(0).squeeze(0).numpy()
             pred_xT  = pred_xT.cpu().squeeze(0).squeeze(0).numpy()

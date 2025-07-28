@@ -1,0 +1,135 @@
+nohup: ignoring input
+2025-07-29 05:59:22.030375: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2025-07-29 05:59:22.046050: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:485] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+2025-07-29 05:59:22.064184: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:8454] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+2025-07-29 05:59:22.069890: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1452] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+2025-07-29 05:59:22.083325: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 AVX512F AVX512_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2025-07-29 05:59:22.900768: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+2025-07-29 05:59:23,749 - INFO - Logging setup complete. Logs will be saved to: ./Result/CPC_BM/T1_data_to_T1C_data/Logs/train_20250729_055923.log
+2025-07-29 05:59:23,749 - INFO - ========== ⏳训练配置参数⏳ ==========
+2025-07-29 05:59:23,749 - INFO - train:
+2025-07-29 05:59:23,749 - INFO -   is_train: True
+2025-07-29 05:59:23,749 - INFO -   continue_train: False
+2025-07-29 05:59:23,749 - INFO -   multi_gpu: True
+2025-07-29 05:59:23,749 - INFO -   gpu: 0,1,2,3
+2025-07-29 05:59:23,749 - INFO -   batch_size: 1
+2025-07-29 05:59:23,749 - INFO -   num_workers: 1
+2025-07-29 05:59:23,749 - INFO -   max_epochs: 300
+2025-07-29 05:59:23,749 - INFO -   epoch_start: 0
+2025-07-29 05:59:23,749 - INFO -   save_freq: 10
+2025-07-29 05:59:23,749 - INFO -   val_freq: 30
+2025-07-29 05:59:23,749 - INFO -   log_freq: 100
+2025-07-29 05:59:23,749 - INFO -   seed: 1234
+2025-07-29 05:59:23,749 - INFO -   model_name: 
+2025-07-29 05:59:23,749 - INFO -   is_text: True
+2025-07-29 05:59:23,749 - INFO -   is_image: True
+2025-07-29 05:59:23,749 - INFO - val:
+2025-07-29 05:59:23,749 - INFO -   overlap: 0.5
+2025-07-29 05:59:23,749 - INFO - path:
+2025-07-29 05:59:23,749 - INFO -   save_dir: ./Result/CPC_BM/T1_data_to_T1C_data/
+2025-07-29 05:59:23,750 - INFO -   checkpoint_path: 
+2025-07-29 05:59:23,750 - INFO -   log_path_dir: ./Result/CPC_BM/T1_data_to_T1C_data/Logs
+2025-07-29 05:59:23,750 - INFO -   csv_path_dir: ./Result/CPC_BM/T1_data_to_T1C_data/Cal
+2025-07-29 05:59:23,750 - INFO -   checkpoint_path_dir: ./Result/CPC_BM/T1_data_to_T1C_data/Checkpoints
+2025-07-29 05:59:23,750 - INFO -   img_path_dir: ./Result/CPC_BM/T1_data_to_T1C_data/Images
+2025-07-29 05:59:23,750 - INFO -   train_loss_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/train_loss_20250729_055923.csv
+2025-07-29 05:59:23,750 - INFO -   train_avg_loss_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/train_avg_loss_20250729_055923.csv
+2025-07-29 05:59:23,750 - INFO -   val_loss_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/val_loss_20250729_055923.csv
+2025-07-29 05:59:23,750 - INFO -   val_metric_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/val_metric_20250729_055923.csv
+2025-07-29 05:59:23,750 - INFO -   val_avg_metric_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/val_avg_metric_20250729_055923.csv
+2025-07-29 05:59:23,750 - INFO -   test_metric_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/test_metric_20250729_055923.csv
+2025-07-29 05:59:23,750 - INFO -   test_avg_metric_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/test_avg_metric_20250729_055923.csv
+2025-07-29 05:59:23,750 - INFO - loss:
+2025-07-29 05:59:23,750 - INFO -   is_perceptual: True
+2025-07-29 05:59:23,750 - INFO -   loss_type: l1
+2025-07-29 05:59:23,750 - INFO -   objective: ysubx
+2025-07-29 05:59:23,750 - INFO -   lambda_con: 1.0
+2025-07-29 05:59:23,750 - INFO -   lambda_rec: 10.0
+2025-07-29 05:59:23,750 - INFO -   lambda_cycle: 5.0
+2025-07-29 05:59:23,750 - INFO -   lambda_perceptual: 5.0
+2025-07-29 05:59:23,750 - INFO - ddbm:
+2025-07-29 05:59:23,750 - INFO -   num_timesteps: 1000
+2025-07-29 05:59:23,750 - INFO -   max_var: 1.0
+2025-07-29 05:59:23,750 - INFO -   mt_type: linear
+2025-07-29 05:59:23,750 - INFO -   sample_mid_step: False
+2025-07-29 05:59:23,750 - INFO -   condition_key: nocond
+2025-07-29 05:59:23,750 - INFO -   sample_type: linear
+2025-07-29 05:59:23,750 - INFO -   sample_step: 50
+2025-07-29 05:59:23,750 - INFO -   skip_sample: True
+2025-07-29 05:59:23,750 - INFO -   eta: 1
+2025-07-29 05:59:23,751 - INFO - net:
+2025-07-29 05:59:23,751 - INFO -   spatial_dims: 3
+2025-07-29 05:59:23,751 - INFO -   in_channels: 1
+2025-07-29 05:59:23,751 - INFO -   out_channels: 1
+2025-07-29 05:59:23,751 - INFO -   condition_image_in_channels: 3
+2025-07-29 05:59:23,751 - INFO -   condition_text_dim: 256
+2025-07-29 05:59:23,751 - INFO -   with_conditioning: False
+2025-07-29 05:59:23,751 - INFO -   num_res_blocks: [2, 2, 2, 2]
+2025-07-29 05:59:23,751 - INFO -   channels: [32, 64, 128, 256]
+2025-07-29 05:59:23,751 - INFO -   attention_levels: [False, False, False, True]
+2025-07-29 05:59:23,751 - INFO -   norm_num_groups: 32
+2025-07-29 05:59:23,751 - INFO -   norm_eps: 1e-06
+2025-07-29 05:59:23,751 - INFO -   resblock_updown: False
+2025-07-29 05:59:23,751 - INFO -   num_head_channels: [8, 8, 8, 8]
+2025-07-29 05:59:23,751 - INFO -   transformer_num_layers: 0
+2025-07-29 05:59:23,751 - INFO -   cross_attention_dim: None
+2025-07-29 05:59:23,751 - INFO -   upcast_attention: False
+2025-07-29 05:59:23,751 - INFO -   dropout_cattn: 0.0
+2025-07-29 05:59:23,751 - INFO -   include_fc: True
+2025-07-29 05:59:23,751 - INFO -   use_combined_linear: False
+2025-07-29 05:59:23,751 - INFO -   use_flash_attention: False
+2025-07-29 05:59:23,751 - INFO -   ot_eps: 0.001
+2025-07-29 05:59:23,751 - INFO -   ot_iters: 1000
+2025-07-29 05:59:23,751 - INFO - data:
+2025-07-29 05:59:23,751 - INFO -   split_dir: /data1/weiyibo/NPC-MRI/Code/Pctch_model/Split/zhongshan2
+2025-07-29 05:59:23,751 - INFO -   norm_mode: global_norm
+2025-07-29 05:59:23,751 - INFO -   resize_image_shape: [36, 256, 256]
+2025-07-29 05:59:23,751 - INFO -   patch_image_shape: [8, 256, 256]
+2025-07-29 05:59:23,751 - INFO -   sour_img_name: T1_data
+2025-07-29 05:59:23,751 - INFO -   targ_img_name: T1C_data
+2025-07-29 05:59:23,751 - INFO -   overlap: 0.1
+2025-07-29 05:59:23,751 - INFO -   num_random_crops: 16
+2025-07-29 05:59:23,751 - INFO - optim:
+2025-07-29 05:59:23,752 - INFO -   optimizer:
+2025-07-29 05:59:23,752 - INFO -     name: AdamW
+2025-07-29 05:59:23,752 - INFO -     params:
+2025-07-29 05:59:23,752 - INFO -       lr: 0.0001
+2025-07-29 05:59:23,752 - INFO -   scheduler:
+2025-07-29 05:59:23,752 - INFO -     name: GradualWarmupScheduler
+2025-07-29 05:59:23,752 - INFO -     params:
+2025-07-29 05:59:23,752 - INFO -       multiplier: 2.0
+2025-07-29 05:59:23,752 - INFO -       total_epoch: 5
+2025-07-29 05:59:23,849 - INFO - 使用 4 个 GPU, 更新 batch_size 为 4
+2025-07-29 05:59:23,849 - INFO - ========== ⏳加载数据集⏳ ==========
+2025-07-29 05:59:23,853 - INFO - 训练集大小: 858, 批次数: 214
+2025-07-29 05:59:23,853 - INFO - 验证集大小: 122, 批次数: 122
+2025-07-29 05:59:23,854 - INFO - 测试集大小: 247, 批次数: 247
+2025-07-29 05:59:23,854 - INFO - ========== ⌛数据集加载完毕⌛ ==========
+Successful download of pre-trained model from /data1/weiyibo/NPC-MRI/Models/Pre_model/VGG/vgg19-dcbb9e9d.pth
+Using 4 GPUs for training.
+2025-07-29 05:59:27,620 - INFO - ========== ⏳开始训练⏳ ==========
+Traceback (most recent call last):
+  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Train/Experiment/BMBD_CC/T1_T1C/train_T1_T1C.py", line 259, in <module>
+    main()
+  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Train/Experiment/BMBD_CC/T1_T1C/train_T1_T1C.py", line 234, in main
+    loss_dict = random_sliding_window_image(model, data, opt.data.patch_image_shape, opt.data.overlap)
+  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Train/Experiment/BMBD_CC/T1_T1C/train_T1_T1C.py", line 178, in random_sliding_window_image
+    loss, loss_dict = model(input_patch, target_patch, txt, img_con1_patch, img_con2_patch)
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Model/BMBD_CC_model.py", line 452, in forward
+    loss, loss_dict = self.p_losses(x_0, x_T, t=t, T=T, text_con=text_con, img_con1=img_con1, img_con2=img_con2)
+  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Model/BMBD_CC_model.py", line 429, in p_losses
+    loss_f, loss_f_dict = self.backward_f(x_0, x_t, x_T, t, T, text_features, img_con2)
+  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Model/BMBD_CC_model.py", line 371, in backward_f
+    loss_f.backward()  # 反向传播
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/_tensor.py", line 521, in backward
+    torch.autograd.backward(
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/autograd/__init__.py", line 289, in backward
+    _engine_run_backward(
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/autograd/graph.py", line 769, in _engine_run_backward
+    return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 16.00 MiB. GPU 1 has a total capacity of 23.65 GiB of which 15.69 MiB is free. Including non-PyTorch memory, this process has 23.62 GiB memory in use. Of the allocated memory 22.82 GiB is allocated by PyTorch, and 257.22 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)

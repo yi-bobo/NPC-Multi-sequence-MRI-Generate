@@ -11,8 +11,8 @@ from torch.utils.data import DataLoader
 # 自定义模块导入
 warnings.filterwarnings('ignore')    # 忽略警告
 sys.path.append('/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/')
-from Model.CycleGAN_model import CycleGANModel
-from Dataset.patch_dataset import npy_3D_dataset
+from Model.BMBD_CC_model import BMBD_CC_model
+from Dataset.cond_dataset import npy_3D_dataset
 from Utils.path_util import create_directories
 from Utils.config_util import load_yaml_config, log_namespace
 from Utils.logging_util import setup_logging, save_loss_csv
@@ -53,57 +53,57 @@ def initialize_dataloader(opt):
 def validate_model(model, val_loader, epoch, opt, best_metrics, model_components):
     """验证模型"""
     logging.info(f"😃开始验证epoch{epoch}模型")
-    mae_targ_list, ssim_targ_list, psnr_targ_list = [], [], []
-    mae_input_list, ssim_input_list, psnr_input_list = [], [], []
+    mae_x0_list, ssim_x0_list, psnr_x0_list, mae_xT_list, ssim_xT_list, psnr_xT_list = [], [], [], [], [], []
 
     with torch.no_grad():
         for i, data in enumerate(val_loader):
         # for i, data in zip(range(2), val_loader):
 
-            input, target, patient_id, data_mapping = model.set_input(data)
-            input, target, pred_target, pred_input, mae_targ, SSIM_targ, PSNR_targ, mae_input, SSIM_input, PSNR_input = model.val(input, target)
+            x_0, x_T, txt, _, img_con1, img_con2, _, patient_id, _ = model.set_input(data)
+            _, _, _, _, mae_x0, ssim_x0, psnr_x0, mae_xT, ssim_xT, psnr_xT = model.val(x_0, x_T, txt, img_con1, img_con2 )
+            # x0, xT, pred_x0, pred_xT, mae_x0, ssim_x0, psnr_x0, mae_xT, ssim_xT, psnr_xT = model.val(x_0, x_T, txt, img_con1, img_con2 )
             
-            mae_targ_list.append(mae_targ)
-            ssim_targ_list.append(SSIM_targ)
-            psnr_targ_list.append(PSNR_targ)
-            mae_input_list.append(mae_input)
-            ssim_input_list.append(SSIM_input)
-            psnr_input_list.append(PSNR_input)
+            mae_x0_list.append(mae_x0)
+            ssim_x0_list.append(ssim_x0)
+            psnr_x0_list.append(psnr_x0)
+            mae_xT_list.append(mae_xT)
+            ssim_xT_list.append(ssim_xT)
+            psnr_xT_list.append(psnr_xT)
 
             # 保存单个样本验证结果
-            val_cal_dict = {'patient_id': patient_id, 'MAE_targ': mae_targ, 'SSIM_targ': SSIM_targ, 'PSNR_targ': PSNR_targ, 
-                            'MAE_input': mae_input, 'SSIM_input': SSIM_input, 'PSNR_input': PSNR_input}
+            val_cal_dict = {'patient_id': patient_id, 'MAE_x0': mae_x0, 'SSIM_x0': ssim_x0, 'PSNR_x0': psnr_x0, 
+                            'MAE_xT': mae_xT, 'SSIM_xT': ssim_xT, 'PSNR_xT': psnr_xT}
             logging.info(f"验证集epoch_{epoch}模型的patient_id:{patient_id}的验证结果:"
-                         f"MAE_targ:{mae_targ:.4f}, SSIM_targ:{SSIM_targ:.4f}, PSNR_targ:{PSNR_targ:.4f}, "
-                         f"MAE_input:{mae_input:.4f}, SSIM_input:{SSIM_input:.4f}, PSNR_input:{PSNR_input:.4f}")
+                         f"MAE_x0:{mae_x0:.4f}, SSIM_x0:{ssim_x0:.4f}, PSNR_x0:{psnr_x0:.4f}, "
+                         f"MAE_xT:{mae_xT:.4f}, SSIM_xT:{ssim_xT:.4f}, PSNR_xT:{psnr_xT:.4f}")
             save_loss_csv(
                 file_path=opt.path.val_metric_csv_path,
                 epoch=epoch,
-                header=['patient_id', 'MAE_targ', 'SSIM_targ', 'PSNR_targ', 'MAE_input', 'SSIM_input', 'PSNR_input'],
+                header=['patient_id', 'MAE_x0', 'SSIM_x0', 'PSNR_x0', 'MAE_xT', 'SSIM_xT', 'PSNR_xT'],
                 loss_dict=val_cal_dict
             )
 
             # save_path_dir = os.path.join(opt.path.img_path_dir, 'val', f"epoch_{epoch}", patient_id)
             # os.makedirs(save_path_dir, exist_ok=True)
-            # model.plot(input, target, pred_target, data_mapping, save_path_dir)
+            # model.plot(x0, xT, pred_x0, pred_xT, data_true_save, save_path_dir)
 
     # 计算验证集平均值与标准差
     metrics_avg = {
-        'MAE_targ': (np.mean(mae_targ_list), np.std(mae_targ_list)),
-        'SSIM_targ': (np.mean(ssim_targ_list), np.std(ssim_targ_list)),
-        'PSNR_targ': (np.mean(psnr_targ_list), np.std(psnr_targ_list)),
-        'MAE_input': (np.mean(mae_input_list), np.std(mae_input_list)),
-        'SSIM_input': (np.mean(ssim_input_list), np.std(ssim_input_list)),
-        'PSNR_input': (np.mean(psnr_input_list), np.std(psnr_input_list)),
-        }
+        'MAE_x0': (np.mean(mae_x0_list), np.std(mae_x0_list)),
+        'SSIM_x0': (np.mean(ssim_x0_list), np.std(ssim_x0_list)),
+        'PSNR_x0': (np.mean(psnr_x0_list), np.std(psnr_x0_list)),
+        'MAE_xT': (np.mean(mae_xT_list), np.std(mae_xT_list)),
+        'SSIM_xT': (np.mean(ssim_xT_list), np.std(ssim_xT_list)),
+        'PSNR_xT': (np.mean(psnr_xT_list), np.std(psnr_xT_list)),
+    }
     # 格式化输出结果
     metrics_str = (
-        f"MAE_targ: {metrics_avg['MAE_targ'][0]:.6f} ± {metrics_avg['MAE_targ'][1]:.6f}, "
-        f"SSIM_targ: {metrics_avg['SSIM_targ'][0]:.6f} ± {metrics_avg['SSIM_targ'][1]:.6f}, "
-        f"PSNR_targ: {metrics_avg['PSNR_targ'][0]:.6f} ± {metrics_avg['PSNR_targ'][1]:.6f}, "
-        f"MAE_input: {metrics_avg['MAE_input'][0]:.6f} ± {metrics_avg['MAE_input'][1]:.6f}, "
-        f"SSIM_input: {metrics_avg['SSIM_input'][0]:.6f} ± {metrics_avg['SSIM_input'][1]:.6f}, "
-        f"PSNR_input: {metrics_avg['PSNR_input'][0]:.6f} ± {metrics_avg['PSNR_input'][1]:.6f}"
+        f"MAE_x0: {metrics_avg['MAE_x0'][0]:.6f} ± {metrics_avg['MAE_x0'][1]:.6f}, "
+        f"SSIM_x0: {metrics_avg['SSIM_x0'][0]:.6f} ± {metrics_avg['SSIM_x0'][1]:.6f}, "
+        f"PSNR_x0: {metrics_avg['PSNR_x0'][0]:.6f} ± {metrics_avg['PSNR_x0'][1]:.6f}, "
+        f"MAE_xT: {metrics_avg['MAE_xT'][0]:.6f} ± {metrics_avg['MAE_xT'][1]:.6f}, "
+        f"SSIM_xT: {metrics_avg['SSIM_xT'][0]:.6f} ± {metrics_avg['SSIM_xT'][1]:.6f}, "
+        f"PSNR_xT: {metrics_avg['PSNR_xT'][0]:.6f} ± {metrics_avg['PSNR_xT'][1]:.6f}"
     )
     logging.info(f"验证集epoch_{epoch}模型的验证结果: {metrics_str}")
     
@@ -111,7 +111,7 @@ def validate_model(model, val_loader, epoch, opt, best_metrics, model_components
     save_loss_csv(
         file_path=opt.path.val_avg_metric_csv_path,
         epoch=epoch,
-        header=['epoch', 'MAE_targ', 'SSIM_targ', 'PSNR_targ', 'MAE_input', 'SSIM_input', 'PSNR_input'],
+        header=['epoch', 'MAE_x0', 'SSIM_x0', 'PSNR_x0', 'MAE_xT', 'SSIM_xT', 'PSNR_xT'],
         loss_dict={key: f"{val[0]:.4f} ± {val[1]:.4f}" for key, val in metrics_avg.items()}
     )
 
@@ -129,7 +129,7 @@ def validate_model(model, val_loader, epoch, opt, best_metrics, model_components
 
     return best_metrics
 
-def random_sliding_window_image(model, data, patch_size, overlap):
+def random_sliding_window_image(model, data, patch_size):
     """
     对 3D 图像进行随机裁剪，并计算每个图像所有随机块的损失均值。
 
@@ -145,9 +145,9 @@ def random_sliding_window_image(model, data, patch_size, overlap):
         avg_loss_dict (dict): 所有随机块的损失字典均值。
     """
     # 提取模型输入
-    input, target, _, _ = model.set_input(data)
+    input, target, txt, _, img_con1, img_con2, _, _, _ = model.set_input(data)
 
-    b, c, d, h, w = input.shape
+    _, _, d, h, w = input.shape
     patch_d, patch_h, patch_w = patch_size
 
     # 确保图像尺寸足够裁剪
@@ -166,13 +166,17 @@ def random_sliding_window_image(model, data, patch_size, overlap):
         # 裁剪块
         input_patch = input[:, :, start_d:start_d + patch_d, start_h:start_h + patch_h, start_w:start_w + patch_w]
         target_patch = target[:, :, start_d:start_d + patch_d, start_h:start_h + patch_h, start_w:start_w + patch_w]
+        img_con1_patch = img_con1[:, :, start_d:start_d + patch_d, start_h:start_h + patch_h, start_w:start_w + patch_w]
+        img_con2_patch = img_con2[:, :, start_d:start_d + patch_d, start_h:start_h + patch_h, start_w:start_w + patch_w]
         
         # 确保块在设备上
         input_patch = input_patch.to(input.device)
         target_patch = target_patch.to(input.device)
+        img_con1_patch = img_con1_patch.to(input.device)
+        img_con2_patch = img_con2_patch.to(input.device)
 
         # 计算单个块的损失
-        loss_dict = model(input_patch, target_patch)
+        _, loss_dict = model(input_patch, target_patch, txt, img_con1_patch, img_con2_patch)
 
         # 累加损失字典中的每项
         for key in loss_dict:
@@ -185,7 +189,7 @@ def random_sliding_window_image(model, data, patch_size, overlap):
 
 def main():
     # 1️⃣ 加载配置
-    config_path = "./Config/Comparative_experiment/CycleGAN/T1_T1C.yaml"
+    config_path = "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Config/BDBM_CC/T1_T1C.yaml"
     opt = load_yaml_config(config_path)
 
     # 1.1 设置随机种子与保存路径
@@ -209,23 +213,16 @@ def main():
         logging.info(f"使用设备: {opt.train.device}")
 
     # 4️⃣ 加载数据集
-    train_loader, val_loader, test_loader = initialize_dataloader(opt)
+    train_loader, val_loader, _ = initialize_dataloader(opt)
 
     # 5️⃣ 创建模型
-    model = CycleGANModel(opt).to(opt.train.device)
-    model_components = {'netG_A2B': model.netG_A2B.state_dict(), 'netG_B2A': model.netG_B2A.state_dict(),
-                         'netD_A2B': model.netD_A2B.state_dict(), 'netD_B2A': model.netD_B2A.state_dict(),
-                         'optimizer_G_A2B': model.optimizer_G_A2B.state_dict(), 'optimizer_D_A2B': model.optimizer_D_A2B.state_dict(),
-                         'optimizer_G_B2A': model.optimizer_G_B2A.state_dict(), 'optimizer_D_B2A': model.optimizer_D_B2A.state_dict()}
-                        #  'optimizer_G': model.optimizer_G.state_dict(), 'optimizer_D': model.optimizer_D.state_dict()}
+    model = BMBD_CC_model(opt).to(opt.train.device)
+    model_components = {'net_f': model.net_f.state_dict(), 'net_b': model.net_b.state_dict(), 'optimizer': model.optimizer.state_dict()}
     if opt.train.continue_train:
         logging.info("加载已保存模型参数")
-        val_model = {'netG_A2B': model.netG_A2B, 'netG_B2A': model.netG_B2A, 'netD_A2B': model.netD_A2B, 'netD_B2A': model.netD_B2A,
-                        'optimizer_G_A2B': model.optimizer_G_A2B, 'optimizer_D_A2B': model.optimizer_D_A2B,
-                        'optimizer_G_B2A': model.optimizer_G_B2A, 'optimizer_D_B2A': model.optimizer_D_B2A}
-                    #  'optimizer_G': model.optimizer_G, 'optimizer_D': model.optimizer_D}
+        val_model = {'net_f': model.net_f, 'net_b': model.net_b, 'optimizer': model.optimizer}
         opt.train.epoch_start = load_model(val_model, checkpoint_path=opt.path.checkpoint_path, device=opt.train.device)
-    best_metrics = {metric: 0 for metric in ['MAE_targ', 'SSIM_targ', 'PSNR_targ', 'MAE_input', 'SSIM_input', 'PSNR_input']}
+    best_metrics = {metric: 0 for metric in ['MAE_x0', 'SSIM_x0', 'PSNR_x0', 'MAE_xT', 'SSIM_xT', 'PSNR_xT']}
 
     # 6️⃣ 开始训练
     logging.info("========== ⏳开始训练⏳ ==========")
@@ -235,13 +232,11 @@ def main():
 
         for i, data in enumerate(train_loader):
         # for i, data in zip(range(2), train_loader):
-            loss_dict = random_sliding_window_image(model, data, opt.data.patch_image_shape, opt.data.overlap)
+            loss_dict = random_sliding_window_image(model, data, opt.data.patch_image_shape)
             loss_sums = {key: loss_sums[key] + loss_dict[key] for key in loss_dict.keys()}
-            # 累加每个损失函数的值
             if i % opt.train.log_freq == 0:
-                lr_G = model.optimizer_G_A2B.param_groups[0]['lr']
-                lr_D = model.optimizer_D_A2B.param_groups[0]['lr']
-                train_str = f"epoch:{epoch}|{opt.train.max_epochs}; batch:{i+1}/{len(train_loader)}; Lr_G:{lr_G:.7f}; Lr_D:{lr_D:.7f}; " + ", ".join([f"{key}:{value:.6f}" for key, value in loss_dict.items()])
+                lr = model.optimizer.param_groups[0]['lr']
+                train_str = f"epoch:{epoch}|{opt.train.max_epochs}; batch:{i+1}/{len(train_loader)}; Lr:{lr:.7f}; ; " + ", ".join([f"{key}:{value:.6f}" for key, value in loss_dict.items()])
                 logging.info(train_str)
 
         # 计算平均损失并保存
@@ -251,6 +246,7 @@ def main():
         save_loss_csv(opt.path.train_avg_loss_csv_path, epoch,  ['epoch'] + list(avg_loss_dict.keys()), {'epoch': epoch, **avg_loss_dict})
 
         # 学习率调度与模型保存
+        model.scheduler.step()
         save_model(model_components, epoch, opt.path.checkpoint_path_dir, file_name=f"latest.pth")
 
         # 验证模型

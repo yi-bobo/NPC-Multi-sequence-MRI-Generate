@@ -9,6 +9,7 @@ from .Blocks.unet_block import get_down_block, get_mid_block, get_up_block, get_
 
 from monai.networks.blocks import Convolution
 
+
 class AdaptiveGatingModule(nn.Module):
     """自适应门控模块，用于计算融合权重"""
     def __init__(self, in_channels, spatial_dims=3):

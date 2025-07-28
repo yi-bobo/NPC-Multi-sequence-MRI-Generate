@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 # 自定义模块导入
 warnings.filterwarnings('ignore')    # 忽略警告
-sys.path.append('/data1/weiyibo/NPC-MRI/Code/Pctch_model/')
+sys.path.append('/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/')
 from Model.Cycle_CPBM_model import Cycle_CPBM_model
 from Dataset.patch_dataset import npy_3D_dataset
 from Utils.path_util import create_directories
