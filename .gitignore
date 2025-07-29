@@ -26,3 +26,8 @@ RegGAN_T2_T1C.log
 Seg_T1.log
 Seg_T1C.log
 Seg_T2.log
+CPC_BM.log
+.gitignore
+CPC_BM_T1C_T2.log
+CPC_BM_T1_T2.log
+CPC_BM.log

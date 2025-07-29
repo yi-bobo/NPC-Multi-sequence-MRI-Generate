@@ -2,7 +2,7 @@ train:   # 训练参数
   is_train: True  # 是否训练
   continue_train: false  # 是否接着上次训练
   multi_gpu: false  # 是否使用多GPU训练
-  gpu: 0 # 使用GPU序号
+  gpu: 2 # 使用GPU序号
   batch_size: 1  # 批大小
   num_workers: 10  # 线程数
   max_epochs: 300  # 最大训练轮数
@@ -73,8 +73,8 @@ data:   # 数据参数
   norm_mode: "global_norm"
   resize_image_shape: [36, 256, 256]
   patch_image_shape: [8, 256, 256]
-  sour_img_name: "T1_data"
-  targ_img_name: "T1C_data"
+  sour_img_name: "T1C_data"
+  targ_img_name: "T2_data"
   overlap: 0.1
   num_random_crops: 16
 

@@ -1,135 +1,129 @@
 nohup: ignoring input
-2025-07-29 05:59:22.030375: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
-2025-07-29 05:59:22.046050: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:485] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
-2025-07-29 05:59:22.064184: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:8454] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
-2025-07-29 05:59:22.069890: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1452] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
-2025-07-29 05:59:22.083325: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+2025-07-29 06:43:16.054085: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2025-07-29 06:43:16.071411: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:485] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+2025-07-29 06:43:16.089492: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:8454] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+2025-07-29 06:43:16.094987: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1452] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+2025-07-29 06:43:16.108465: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
 To enable the following instructions: AVX2 AVX512F AVX512_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
-2025-07-29 05:59:22.900768: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
-2025-07-29 05:59:23,749 - INFO - Logging setup complete. Logs will be saved to: ./Result/CPC_BM/T1_data_to_T1C_data/Logs/train_20250729_055923.log
-2025-07-29 05:59:23,749 - INFO - ========== ⏳训练配置参数⏳ ==========
-2025-07-29 05:59:23,749 - INFO - train:
-2025-07-29 05:59:23,749 - INFO -   is_train: True
-2025-07-29 05:59:23,749 - INFO -   continue_train: False
-2025-07-29 05:59:23,749 - INFO -   multi_gpu: True
-2025-07-29 05:59:23,749 - INFO -   gpu: 0,1,2,3
-2025-07-29 05:59:23,749 - INFO -   batch_size: 1
-2025-07-29 05:59:23,749 - INFO -   num_workers: 1
-2025-07-29 05:59:23,749 - INFO -   max_epochs: 300
-2025-07-29 05:59:23,749 - INFO -   epoch_start: 0
-2025-07-29 05:59:23,749 - INFO -   save_freq: 10
-2025-07-29 05:59:23,749 - INFO -   val_freq: 30
-2025-07-29 05:59:23,749 - INFO -   log_freq: 100
-2025-07-29 05:59:23,749 - INFO -   seed: 1234
-2025-07-29 05:59:23,749 - INFO -   model_name: 
-2025-07-29 05:59:23,749 - INFO -   is_text: True
-2025-07-29 05:59:23,749 - INFO -   is_image: True
-2025-07-29 05:59:23,749 - INFO - val:
-2025-07-29 05:59:23,749 - INFO -   overlap: 0.5
-2025-07-29 05:59:23,749 - INFO - path:
-2025-07-29 05:59:23,749 - INFO -   save_dir: ./Result/CPC_BM/T1_data_to_T1C_data/
-2025-07-29 05:59:23,750 - INFO -   checkpoint_path: 
-2025-07-29 05:59:23,750 - INFO -   log_path_dir: ./Result/CPC_BM/T1_data_to_T1C_data/Logs
-2025-07-29 05:59:23,750 - INFO -   csv_path_dir: ./Result/CPC_BM/T1_data_to_T1C_data/Cal
-2025-07-29 05:59:23,750 - INFO -   checkpoint_path_dir: ./Result/CPC_BM/T1_data_to_T1C_data/Checkpoints
-2025-07-29 05:59:23,750 - INFO -   img_path_dir: ./Result/CPC_BM/T1_data_to_T1C_data/Images
-2025-07-29 05:59:23,750 - INFO -   train_loss_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/train_loss_20250729_055923.csv
-2025-07-29 05:59:23,750 - INFO -   train_avg_loss_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/train_avg_loss_20250729_055923.csv
-2025-07-29 05:59:23,750 - INFO -   val_loss_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/val_loss_20250729_055923.csv
-2025-07-29 05:59:23,750 - INFO -   val_metric_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/val_metric_20250729_055923.csv
-2025-07-29 05:59:23,750 - INFO -   val_avg_metric_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/val_avg_metric_20250729_055923.csv
-2025-07-29 05:59:23,750 - INFO -   test_metric_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/test_metric_20250729_055923.csv
-2025-07-29 05:59:23,750 - INFO -   test_avg_metric_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/test_avg_metric_20250729_055923.csv
-2025-07-29 05:59:23,750 - INFO - loss:
-2025-07-29 05:59:23,750 - INFO -   is_perceptual: True
-2025-07-29 05:59:23,750 - INFO -   loss_type: l1
-2025-07-29 05:59:23,750 - INFO -   objective: ysubx
-2025-07-29 05:59:23,750 - INFO -   lambda_con: 1.0
-2025-07-29 05:59:23,750 - INFO -   lambda_rec: 10.0
-2025-07-29 05:59:23,750 - INFO -   lambda_cycle: 5.0
-2025-07-29 05:59:23,750 - INFO -   lambda_perceptual: 5.0
-2025-07-29 05:59:23,750 - INFO - ddbm:
-2025-07-29 05:59:23,750 - INFO -   num_timesteps: 1000
-2025-07-29 05:59:23,750 - INFO -   max_var: 1.0
-2025-07-29 05:59:23,750 - INFO -   mt_type: linear
-2025-07-29 05:59:23,750 - INFO -   sample_mid_step: False
-2025-07-29 05:59:23,750 - INFO -   condition_key: nocond
-2025-07-29 05:59:23,750 - INFO -   sample_type: linear
-2025-07-29 05:59:23,750 - INFO -   sample_step: 50
-2025-07-29 05:59:23,750 - INFO -   skip_sample: True
-2025-07-29 05:59:23,750 - INFO -   eta: 1
-2025-07-29 05:59:23,751 - INFO - net:
-2025-07-29 05:59:23,751 - INFO -   spatial_dims: 3
-2025-07-29 05:59:23,751 - INFO -   in_channels: 1
-2025-07-29 05:59:23,751 - INFO -   out_channels: 1
-2025-07-29 05:59:23,751 - INFO -   condition_image_in_channels: 3
-2025-07-29 05:59:23,751 - INFO -   condition_text_dim: 256
-2025-07-29 05:59:23,751 - INFO -   with_conditioning: False
-2025-07-29 05:59:23,751 - INFO -   num_res_blocks: [2, 2, 2, 2]
-2025-07-29 05:59:23,751 - INFO -   channels: [32, 64, 128, 256]
-2025-07-29 05:59:23,751 - INFO -   attention_levels: [False, False, False, True]
-2025-07-29 05:59:23,751 - INFO -   norm_num_groups: 32
-2025-07-29 05:59:23,751 - INFO -   norm_eps: 1e-06
-2025-07-29 05:59:23,751 - INFO -   resblock_updown: False
-2025-07-29 05:59:23,751 - INFO -   num_head_channels: [8, 8, 8, 8]
-2025-07-29 05:59:23,751 - INFO -   transformer_num_layers: 0
-2025-07-29 05:59:23,751 - INFO -   cross_attention_dim: None
-2025-07-29 05:59:23,751 - INFO -   upcast_attention: False
-2025-07-29 05:59:23,751 - INFO -   dropout_cattn: 0.0
-2025-07-29 05:59:23,751 - INFO -   include_fc: True
-2025-07-29 05:59:23,751 - INFO -   use_combined_linear: False
-2025-07-29 05:59:23,751 - INFO -   use_flash_attention: False
-2025-07-29 05:59:23,751 - INFO -   ot_eps: 0.001
-2025-07-29 05:59:23,751 - INFO -   ot_iters: 1000
-2025-07-29 05:59:23,751 - INFO - data:
-2025-07-29 05:59:23,751 - INFO -   split_dir: /data1/weiyibo/NPC-MRI/Code/Pctch_model/Split/zhongshan2
-2025-07-29 05:59:23,751 - INFO -   norm_mode: global_norm
-2025-07-29 05:59:23,751 - INFO -   resize_image_shape: [36, 256, 256]
-2025-07-29 05:59:23,751 - INFO -   patch_image_shape: [8, 256, 256]
-2025-07-29 05:59:23,751 - INFO -   sour_img_name: T1_data
-2025-07-29 05:59:23,751 - INFO -   targ_img_name: T1C_data
-2025-07-29 05:59:23,751 - INFO -   overlap: 0.1
-2025-07-29 05:59:23,751 - INFO -   num_random_crops: 16
-2025-07-29 05:59:23,751 - INFO - optim:
-2025-07-29 05:59:23,752 - INFO -   optimizer:
-2025-07-29 05:59:23,752 - INFO -     name: AdamW
-2025-07-29 05:59:23,752 - INFO -     params:
-2025-07-29 05:59:23,752 - INFO -       lr: 0.0001
-2025-07-29 05:59:23,752 - INFO -   scheduler:
-2025-07-29 05:59:23,752 - INFO -     name: GradualWarmupScheduler
-2025-07-29 05:59:23,752 - INFO -     params:
-2025-07-29 05:59:23,752 - INFO -       multiplier: 2.0
-2025-07-29 05:59:23,752 - INFO -       total_epoch: 5
-2025-07-29 05:59:23,849 - INFO - 使用 4 个 GPU, 更新 batch_size 为 4
-2025-07-29 05:59:23,849 - INFO - ========== ⏳加载数据集⏳ ==========
-2025-07-29 05:59:23,853 - INFO - 训练集大小: 858, 批次数: 214
-2025-07-29 05:59:23,853 - INFO - 验证集大小: 122, 批次数: 122
-2025-07-29 05:59:23,854 - INFO - 测试集大小: 247, 批次数: 247
-2025-07-29 05:59:23,854 - INFO - ========== ⌛数据集加载完毕⌛ ==========
+2025-07-29 06:43:16.927888: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+2025-07-29 06:43:17,757 - INFO - Logging setup complete. Logs will be saved to: ./Result/CPC_BM/T1_data_to_T1C_data/Logs/train_20250729_064317.log
+2025-07-29 06:43:17,757 - INFO - ========== ⏳训练配置参数⏳ ==========
+2025-07-29 06:43:17,757 - INFO - train:
+2025-07-29 06:43:17,757 - INFO -   is_train: True
+2025-07-29 06:43:17,757 - INFO -   continue_train: False
+2025-07-29 06:43:17,757 - INFO -   multi_gpu: False
+2025-07-29 06:43:17,757 - INFO -   gpu: 0
+2025-07-29 06:43:17,757 - INFO -   batch_size: 1
+2025-07-29 06:43:17,757 - INFO -   num_workers: 10
+2025-07-29 06:43:17,757 - INFO -   max_epochs: 300
+2025-07-29 06:43:17,758 - INFO -   epoch_start: 0
+2025-07-29 06:43:17,758 - INFO -   save_freq: 10
+2025-07-29 06:43:17,758 - INFO -   val_freq: 30
+2025-07-29 06:43:17,758 - INFO -   log_freq: 100
+2025-07-29 06:43:17,758 - INFO -   seed: 1234
+2025-07-29 06:43:17,758 - INFO -   model_name: 
+2025-07-29 06:43:17,758 - INFO -   is_text: True
+2025-07-29 06:43:17,758 - INFO -   is_image: True
+2025-07-29 06:43:17,758 - INFO - val:
+2025-07-29 06:43:17,758 - INFO -   overlap: 0.5
+2025-07-29 06:43:17,758 - INFO - path:
+2025-07-29 06:43:17,758 - INFO -   save_dir: ./Result/CPC_BM/T1_data_to_T1C_data/
+2025-07-29 06:43:17,758 - INFO -   checkpoint_path: 
+2025-07-29 06:43:17,758 - INFO -   log_path_dir: ./Result/CPC_BM/T1_data_to_T1C_data/Logs
+2025-07-29 06:43:17,758 - INFO -   csv_path_dir: ./Result/CPC_BM/T1_data_to_T1C_data/Cal
+2025-07-29 06:43:17,758 - INFO -   checkpoint_path_dir: ./Result/CPC_BM/T1_data_to_T1C_data/Checkpoints
+2025-07-29 06:43:17,758 - INFO -   img_path_dir: ./Result/CPC_BM/T1_data_to_T1C_data/Images
+2025-07-29 06:43:17,758 - INFO -   train_loss_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/train_loss_20250729_064317.csv
+2025-07-29 06:43:17,758 - INFO -   train_avg_loss_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/train_avg_loss_20250729_064317.csv
+2025-07-29 06:43:17,758 - INFO -   val_loss_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/val_loss_20250729_064317.csv
+2025-07-29 06:43:17,758 - INFO -   val_metric_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/val_metric_20250729_064317.csv
+2025-07-29 06:43:17,758 - INFO -   val_avg_metric_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/val_avg_metric_20250729_064317.csv
+2025-07-29 06:43:17,758 - INFO -   test_metric_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/test_metric_20250729_064317.csv
+2025-07-29 06:43:17,758 - INFO -   test_avg_metric_csv_path: ./Result/CPC_BM/T1_data_to_T1C_data/Cal/test_avg_metric_20250729_064317.csv
+2025-07-29 06:43:17,758 - INFO - loss:
+2025-07-29 06:43:17,758 - INFO -   is_perceptual: True
+2025-07-29 06:43:17,759 - INFO -   loss_type: l1
+2025-07-29 06:43:17,759 - INFO -   objective: ysubx
+2025-07-29 06:43:17,759 - INFO -   lambda_con: 2.0
+2025-07-29 06:43:17,759 - INFO -   lambda_rec: 5.0
+2025-07-29 06:43:17,759 - INFO -   lambda_cycle: 7.0
+2025-07-29 06:43:17,759 - INFO -   lambda_perceptual: 6.0
+2025-07-29 06:43:17,759 - INFO - ddbm:
+2025-07-29 06:43:17,759 - INFO -   num_timesteps: 1000
+2025-07-29 06:43:17,759 - INFO -   max_var: 1.0
+2025-07-29 06:43:17,759 - INFO -   mt_type: linear
+2025-07-29 06:43:17,759 - INFO -   sample_mid_step: False
+2025-07-29 06:43:17,759 - INFO -   condition_key: nocond
+2025-07-29 06:43:17,759 - INFO -   sample_type: linear
+2025-07-29 06:43:17,759 - INFO -   sample_step: 50
+2025-07-29 06:43:17,759 - INFO -   skip_sample: True
+2025-07-29 06:43:17,759 - INFO -   eta: 1
+2025-07-29 06:43:17,759 - INFO - net:
+2025-07-29 06:43:17,759 - INFO -   spatial_dims: 3
+2025-07-29 06:43:17,759 - INFO -   in_channels: 1
+2025-07-29 06:43:17,759 - INFO -   out_channels: 1
+2025-07-29 06:43:17,759 - INFO -   condition_image_in_channels: 3
+2025-07-29 06:43:17,759 - INFO -   condition_text_dim: 256
+2025-07-29 06:43:17,759 - INFO -   with_conditioning: False
+2025-07-29 06:43:17,759 - INFO -   num_res_blocks: [2, 2, 2, 2]
+2025-07-29 06:43:17,759 - INFO -   channels: [32, 64, 128, 256]
+2025-07-29 06:43:17,759 - INFO -   attention_levels: [False, False, False, True]
+2025-07-29 06:43:17,759 - INFO -   norm_num_groups: 32
+2025-07-29 06:43:17,759 - INFO -   norm_eps: 1e-06
+2025-07-29 06:43:17,759 - INFO -   resblock_updown: False
+2025-07-29 06:43:17,759 - INFO -   num_head_channels: [8, 8, 8, 8]
+2025-07-29 06:43:17,759 - INFO -   transformer_num_layers: 0
+2025-07-29 06:43:17,759 - INFO -   cross_attention_dim: None
+2025-07-29 06:43:17,760 - INFO -   upcast_attention: False
+2025-07-29 06:43:17,760 - INFO -   dropout_cattn: 0.0
+2025-07-29 06:43:17,760 - INFO -   include_fc: True
+2025-07-29 06:43:17,760 - INFO -   use_combined_linear: False
+2025-07-29 06:43:17,760 - INFO -   use_flash_attention: False
+2025-07-29 06:43:17,760 - INFO -   ot_eps: 0.001
+2025-07-29 06:43:17,760 - INFO -   ot_iters: 1000
+2025-07-29 06:43:17,760 - INFO - data:
+2025-07-29 06:43:17,760 - INFO -   split_dir: /data1/weiyibo/NPC-MRI/Code/Pctch_model/Split/zhongshan2
+2025-07-29 06:43:17,760 - INFO -   norm_mode: global_norm
+2025-07-29 06:43:17,760 - INFO -   resize_image_shape: [36, 256, 256]
+2025-07-29 06:43:17,760 - INFO -   patch_image_shape: [8, 256, 256]
+2025-07-29 06:43:17,760 - INFO -   sour_img_name: T1_data
+2025-07-29 06:43:17,760 - INFO -   targ_img_name: T1C_data
+2025-07-29 06:43:17,760 - INFO -   overlap: 0.1
+2025-07-29 06:43:17,760 - INFO -   num_random_crops: 16
+2025-07-29 06:43:17,760 - INFO - optim:
+2025-07-29 06:43:17,760 - INFO -   optimizer:
+2025-07-29 06:43:17,760 - INFO -     name: AdamW
+2025-07-29 06:43:17,760 - INFO -     params:
+2025-07-29 06:43:17,760 - INFO -       lr: 0.0001
+2025-07-29 06:43:17,760 - INFO -   scheduler:
+2025-07-29 06:43:17,760 - INFO -     name: GradualWarmupScheduler
+2025-07-29 06:43:17,760 - INFO -     params:
+2025-07-29 06:43:17,760 - INFO -       multiplier: 2.0
+2025-07-29 06:43:17,760 - INFO -       total_epoch: 5
+2025-07-29 06:43:17,805 - INFO - 使用设备: cuda:0
+2025-07-29 06:43:17,805 - INFO - ========== ⏳加载数据集⏳ ==========
+2025-07-29 06:43:17,806 - INFO - 训练集大小: 858, 批次数: 858
+2025-07-29 06:43:17,807 - INFO - 验证集大小: 122, 批次数: 122
+2025-07-29 06:43:17,807 - INFO - 测试集大小: 247, 批次数: 247
+2025-07-29 06:43:17,807 - INFO - ========== ⌛数据集加载完毕⌛ ==========
 Successful download of pre-trained model from /data1/weiyibo/NPC-MRI/Models/Pre_model/VGG/vgg19-dcbb9e9d.pth
-Using 4 GPUs for training.
-2025-07-29 05:59:27,620 - INFO - ========== ⏳开始训练⏳ ==========
-Traceback (most recent call last):
-  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Train/Experiment/BMBD_CC/T1_T1C/train_T1_T1C.py", line 259, in <module>
-    main()
-  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Train/Experiment/BMBD_CC/T1_T1C/train_T1_T1C.py", line 234, in main
-    loss_dict = random_sliding_window_image(model, data, opt.data.patch_image_shape, opt.data.overlap)
-  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Train/Experiment/BMBD_CC/T1_T1C/train_T1_T1C.py", line 178, in random_sliding_window_image
-    loss, loss_dict = model(input_patch, target_patch, txt, img_con1_patch, img_con2_patch)
-  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1562, in _call_impl
-    return forward_call(*args, **kwargs)
-  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Model/BMBD_CC_model.py", line 452, in forward
-    loss, loss_dict = self.p_losses(x_0, x_T, t=t, T=T, text_con=text_con, img_con1=img_con1, img_con2=img_con2)
-  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Model/BMBD_CC_model.py", line 429, in p_losses
-    loss_f, loss_f_dict = self.backward_f(x_0, x_t, x_T, t, T, text_features, img_con2)
-  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Model/BMBD_CC_model.py", line 371, in backward_f
-    loss_f.backward()  # 反向传播
-  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/_tensor.py", line 521, in backward
-    torch.autograd.backward(
-  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/autograd/__init__.py", line 289, in backward
-    _engine_run_backward(
-  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/autograd/graph.py", line 769, in _engine_run_backward
-    return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
-torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 16.00 MiB. GPU 1 has a total capacity of 23.65 GiB of which 15.69 MiB is free. Including non-PyTorch memory, this process has 23.62 GiB memory in use. Of the allocated memory 22.82 GiB is allocated by PyTorch, and 257.22 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+2025-07-29 06:43:21,685 - INFO - ========== ⏳开始训练⏳ ==========
+2025-07-29 06:43:45,541 - INFO - epoch:1|300; batch:1/858; Lr:0.0001080; ; loss:5.131462, loss_f:2.886173, loss_f_con:0.039473, loss_f_rec:0.079912, loss_f_cycle:0.072309, loss_f_perceptual:0.316917, loss_b:2.245289, loss_b_con:0.035234, loss_b_rec:0.060182, loss_b_cycle:0.054265, loss_b_perceptual:0.249009
+2025-07-29 07:19:25,251 - INFO - epoch:1|300; batch:101/858; Lr:0.0001435; ; loss:2.953988, loss_f:1.808421, loss_f_con:0.019750, loss_f_rec:0.037501, loss_f_cycle:0.031596, loss_f_perceptual:0.226707, loss_b:1.145567, loss_b_con:0.015167, loss_b_rec:0.026742, loss_b_cycle:0.025027, loss_b_perceptual:0.134388
+2025-07-29 07:55:30,290 - INFO - epoch:1|300; batch:201/858; Lr:0.0000003; ; loss:2.291075, loss_f:1.394883, loss_f_con:0.017182, loss_f_rec:0.029833, loss_f_cycle:0.022752, loss_f_perceptual:0.175349, loss_b:0.896192, loss_b_con:0.012543, loss_b_rec:0.016306, loss_b_cycle:0.011167, loss_b_perceptual:0.118567
+2025-07-29 08:31:25,870 - INFO - epoch:1|300; batch:301/858; Lr:0.0001562; ; loss:2.291991, loss_f:1.370108, loss_f_con:0.015032, loss_f_rec:0.034147, loss_f_cycle:0.028677, loss_f_perceptual:0.161427, loss_b:0.921883, loss_b_con:0.011054, loss_b_rec:0.020368, loss_b_cycle:0.017394, loss_b_perceptual:0.112696
+2025-07-29 09:07:11,714 - INFO - epoch:1|300; batch:401/858; Lr:0.0001435; ; loss:2.237698, loss_f:1.384378, loss_f_con:0.014637, loss_f_rec:0.028515, loss_f_cycle:0.024009, loss_f_perceptual:0.174077, loss_b:0.853320, loss_b_con:0.010603, loss_b_rec:0.019786, loss_b_cycle:0.016485, loss_b_perceptual:0.102965
+2025-07-29 09:43:01,510 - INFO - epoch:1|300; batch:501/858; Lr:0.0000003; ; loss:2.321231, loss_f:1.423911, loss_f_con:0.017258, loss_f_rec:0.032167, loss_f_cycle:0.023037, loss_f_perceptual:0.177883, loss_b:0.897320, loss_b_con:0.012098, loss_b_rec:0.022199, loss_b_cycle:0.017174, loss_b_perceptual:0.106985
+2025-07-29 10:18:47,961 - INFO - epoch:1|300; batch:601/858; Lr:0.0001562; ; loss:2.372792, loss_f:1.087131, loss_f_con:0.014979, loss_f_rec:0.026707, loss_f_cycle:0.018535, loss_f_perceptual:0.132316, loss_b:1.285661, loss_b_con:0.015076, loss_b_rec:0.043821, loss_b_cycle:0.040106, loss_b_perceptual:0.125944
+2025-07-29 10:54:36,515 - INFO - epoch:1|300; batch:701/858; Lr:0.0001435; ; loss:2.237416, loss_f:1.387770, loss_f_con:0.013647, loss_f_rec:0.036292, loss_f_cycle:0.030904, loss_f_perceptual:0.160448, loss_b:0.849646, loss_b_con:0.008558, loss_b_rec:0.022133, loss_b_cycle:0.016953, loss_b_perceptual:0.100532
+2025-07-29 11:30:44,152 - INFO - epoch:1|300; batch:801/858; Lr:0.0000003; ; loss:1.987834, loss_f:1.029715, loss_f_con:0.015901, loss_f_rec:0.026178, loss_f_cycle:0.017988, loss_f_perceptual:0.123519, loss_b:0.958119, loss_b_con:0.011871, loss_b_rec:0.028437, loss_b_cycle:0.025330, loss_b_perceptual:0.102479
+2025-07-29 11:51:13,629 - INFO - epoch:1|300;loss:2.328068, loss_f:1.341870, loss_f_con:0.017049, loss_f_rec:0.033455, loss_f_cycle:0.026839, loss_f_perceptual:0.158770, loss_b:0.986197, loss_b_con:0.012405, loss_b_rec:0.025553, loss_b_cycle:0.021544, loss_b_perceptual:0.113802
+Model saved to ./Result/CPC_BM/T1_data_to_T1C_data/Checkpoints/latest.pth
+2025-07-29 11:51:37,330 - INFO - epoch:2|300; batch:1/858; Lr:0.0000772; ; loss:1.994264, loss_f:1.207559, loss_f_con:0.017553, loss_f_rec:0.021667, loss_f_cycle:0.013946, loss_f_perceptual:0.161082, loss_b:0.786705, loss_b_con:0.011470, loss_b_rec:0.015060, loss_b_cycle:0.009186, loss_b_perceptual:0.104027
+2025-07-29 12:27:47,562 - INFO - epoch:2|300; batch:101/858; Lr:0.0000271; ; loss:1.658713, loss_f:0.942990, loss_f_con:0.016540, loss_f_rec:0.019333, loss_f_cycle:0.010230, loss_f_perceptual:0.123606, loss_b:0.715723, loss_b_con:0.011229, loss_b_rec:0.012799, loss_b_cycle:0.006610, loss_b_perceptual:0.097167
+2025-07-29 13:03:56,233 - INFO - epoch:2|300; batch:201/858; Lr:0.0001957; ; loss:1.516392, loss_f:0.877316, loss_f_con:0.014987, loss_f_rec:0.021383, loss_f_cycle:0.017261, loss_f_perceptual:0.103267, loss_b:0.639076, loss_b_con:0.008229, loss_b_rec:0.015791, loss_b_cycle:0.012551, loss_b_perceptual:0.075968
+2025-07-29 13:39:53,449 - INFO - epoch:2|300; batch:301/858; Lr:0.0000772; ; loss:1.959458, loss_f:1.136618, loss_f_con:0.023337, loss_f_rec:0.029282, loss_f_cycle:0.022216, loss_f_perceptual:0.131336, loss_b:0.822840, loss_b_con:0.012579, loss_b_rec:0.017392, loss_b_cycle:0.012401, loss_b_perceptual:0.103985
+2025-07-29 14:15:58,549 - INFO - epoch:2|300; batch:401/858; Lr:0.0000271; ; loss:1.775599, loss_f:1.004657, loss_f_con:0.014561, loss_f_rec:0.021163, loss_f_cycle:0.009727, loss_f_perceptual:0.133605, loss_b:0.770942, loss_b_con:0.013448, loss_b_rec:0.016184, loss_b_cycle:0.009297, loss_b_perceptual:0.099675
+2025-07-29 14:52:04,703 - INFO - epoch:2|300; batch:501/858; Lr:0.0001957; ; loss:1.875630, loss_f:1.111626, loss_f_con:0.017724, loss_f_rec:0.024333, loss_f_cycle:0.016753, loss_f_perceptual:0.139541, loss_b:0.764005, loss_b_con:0.011556, loss_b_rec:0.015581, loss_b_cycle:0.010018, loss_b_perceptual:0.098809
+2025-07-29 15:27:36,919 - INFO - epoch:2|300; batch:601/858; Lr:0.0000772; ; loss:2.485070, loss_f:1.367719, loss_f_con:0.014653, loss_f_rec:0.049879, loss_f_cycle:0.045085, loss_f_perceptual:0.128903, loss_b:1.117351, loss_b_con:0.009367, loss_b_rec:0.044033, loss_b_cycle:0.038948, loss_b_perceptual:0.100969
+2025-07-29 16:03:26,858 - INFO - epoch:2|300; batch:701/858; Lr:0.0000271; ; loss:2.004964, loss_f:1.169779, loss_f_con:0.020239, loss_f_rec:0.024175, loss_f_cycle:0.011963, loss_f_perceptual:0.154114, loss_b:0.835185, loss_b_con:0.013378, loss_b_rec:0.014763, loss_b_cycle:0.007109, loss_b_perceptual:0.114141
