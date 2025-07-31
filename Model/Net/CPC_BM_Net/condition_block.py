@@ -1,7 +1,184 @@
-import torch
-import torch.nn as nn
-from monai.networks.blocks import Convolution
 
+# region ImageEncode
+"版本：1.0.0"
+# region 
+# class ImageEncode(nn.Module):
+#     def __init__(self, 
+#                  spatial_dims: int,
+#                  in_channels: int,
+#                  out_channels: int,
+#                  num_res_blocks: int,
+#                  norm_num_groups: int,
+#                  norm_eps: float,
+#                  resblock_updown: bool,
+#                  num_head_channels: int,
+#                  with_attn: bool = False,
+#                  add_downsample: bool = True,
+#                  downsample_padding: int = 1,
+#                  include_fc: bool = True,
+#                  use_combined_linear: bool = False,
+#                  use_flash_attention: bool = False,):
+#         super().__init__()
+#         self.resblock_updown = resblock_updown
+#         self.with_attn = with_attn
+#         # 按照 num_res_blocks 次数构建平行的 ResNet+Attention 列表
+#         resnets = []
+#         for i in range(num_res_blocks):
+#             resnets.append(
+#                 ConditionalUNetResnetBlock(
+#                     spatial_dims=spatial_dims,
+#                     in_channels=in_channels,
+#                     out_channels=out_channels,
+#                     norm_num_groups=norm_num_groups,
+#                     norm_eps=norm_eps,
+#                 )
+#             )
+#         # 将列表封装为 ModuleList，保证参数注册
+#         self.resnets = nn.ModuleList(resnets)
+
+#         attentions = []
+#         for i in range(num_res_blocks):
+#             if with_attn:
+#                 # 2) 空间注意力模块
+#                 attentions.append(
+#                     SpatialAttentionBlock(
+#                         spatial_dims=spatial_dims,
+#                         num_channels=out_channels,
+#                         num_head_channels=num_head_channels,
+#                         norm_num_groups=norm_num_groups,
+#                         norm_eps=norm_eps,
+#                         include_fc=include_fc,
+#                         use_combined_linear=use_combined_linear,
+#                         use_flash_attention=use_flash_attention,
+#                     )
+#                 )
+#         self.attentions = nn.ModuleList(attentions)
+#         # 下采样模块：可选添加
+#         self.downsampler = None
+#         if add_downsample:
+#             if resblock_updown:
+#                 # 使用 ResNet Block（down=True）来做下采样
+#                 self.downsampler = ConditionalUNetResnetBlock(
+#                     spatial_dims=spatial_dims,
+#                     in_channels=out_channels,
+#                     out_channels=out_channels,
+#                     norm_num_groups=norm_num_groups,
+#                     norm_eps=norm_eps,
+#                     down=True,                # 指定下采样行为
+#                 )
+#             else:
+#                 # 使用专门的 Conv/Pool 下采样
+#                 self.downsampler = ConditionalUnetDownsample(
+#                     spatial_dims=spatial_dims,
+#                     num_channels=out_channels,
+#                     use_conv=True,            # 用卷积方式下采样
+#                     out_channels=out_channels,
+#                     padding=downsample_padding,
+#                 )
+    
+#     def forward(
+#         self,
+#         hidden_states: torch.Tensor,
+#     ) -> tuple[torch.Tensor, list[torch.Tensor]]:
+#         """
+#         Args:
+#             hidden_states: [B, C, ...]，输入特征图
+#             context:       可选上下文（此处忽略，仅为接口一致）
+#         Returns:
+#             hidden_states:   经所有模块处理后的特征图
+#             output_states:   包含每次 ResNet+Attention 后（及最终下采样后）的中间特征列表
+#         """
+#         output_states = []
+
+#         # 1) 对每个 ResNet Block + Attention 作前向，并收集输出
+#         for resnet in self.resnets:
+#             hidden_states = resnet(hidden_states)    # 注入时间嵌入
+#             if self.with_attn:
+#                 for attn in self.attentions:
+#                     hidden_states = attn(hidden_states).contiguous()
+#                     output_states.append(hidden_states)
+#             else:
+#                 output_states.append(hidden_states)
+
+#         # 2) 下采样（若配置了）
+#         if self.downsampler is not None:
+#             hidden_states = self.downsampler(hidden_states)
+#             output_states.append(hidden_states)
+
+#         # 返回最终特征与所有中间特征
+#         return hidden_states, output_states
+# endregion
+
+"version：1.0.1"   # //? 只采用n个残差块提取条件图像特征然后通过下采样到对应维度 /
+class ImageEncode(nn.Module):
+    def __init__(self, 
+                 spatial_dims: int,
+                 in_channels: int,
+                 out_channels: int,
+                 num_res_blocks: int,
+                 norm_num_groups: int,
+                 norm_eps: float,
+                 add_downsample: bool = True,
+                 downsample_padding: int = 1,):
+        super().__init__()
+        # 按照 num_res_blocks 次数构建平行的 ResNet列表
+        resnets = []
+        for _ in range(num_res_blocks):
+            resnets.append(
+                ResNetBlock(
+                    spatial_dims=spatial_dims,
+                    in_channels=in_channels,
+                    out_channels=in_channels,
+                    norm_num_groups=norm_num_groups,
+                    norm_eps=norm_eps,
+                )
+            )
+        # 将列表封装为 ModuleList，保证参数注册
+        self.resnets = nn.ModuleList(resnets)
+
+        # 使用专门的 Conv/Pool 下采样
+        self.downsampler = None
+        if add_downsample:
+            self.downsampler = ConditionalUnetDownsample(
+                spatial_dims=spatial_dims,
+                num_channels=in_channels,
+                use_conv=True,            # 用卷积方式下采样
+                out_channels=out_channels,
+                padding=downsample_padding,
+            )
+        else: 
+            self.downsampler = ConditionalUnetDownsample(
+                spatial_dims=spatial_dims,
+                num_channels=in_channels,
+                use_conv=True,            # 用卷积方式下采样
+                out_channels=out_channels,
+                strides=(1, 2, 2),          # //?只在H和W维度下采样
+                padding=downsample_padding,
+            )
+    
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+    ) -> tuple[torch.Tensor, list[torch.Tensor]]:
+        """
+        Args:
+            hidden_states: [B, C, ...]，输入特征图
+        Returns:
+            hidden_states:   经所有模块处理后的特征图
+        """
+
+        # 1) 对每个 ResNet Block + Attention 作前向，并收集输出
+        for resnet in self.resnets:
+            hidden_states = resnet(hidden_states)  
+
+        # 2) 下采样
+        if self.downsampler is not None:
+            hidden_states = self.downsampler(hidden_states)
+        
+
+        # 返回最终特征与所有中间特征
+        return hidden_states
+# endregion
 
 # region 最优传输对齐
 def compute_cost_matrix(A, B, cost_function="euclidean"):
@@ -22,10 +199,112 @@ def compute_cost_matrix(A, B, cost_function="euclidean"):
     cost_matrix = torch.zeros(N, M).to(A.device)
     cost_matrix = torch.cdist(A.T, B.T, p=2)  # 计算欧几里得距离
 
+    # for i in range(N):
+    #     for j in range(M):
+    #         if cost_function == "euclidean":
+    #             cost_matrix[i, j] = torch.norm(A[:, i] - B[:, j], p=2)  # 计算欧几里得距离
+
     return cost_matrix
 
 
+class T2I_OptimalTransportAligner(nn.Module):
+    """
+    熵正则化最优传输对齐：
+      - 文本特征：B × N × D
+      - 图像特征：B × C × H × W 或  B × C × D_s × H × W
+    会把图像特征展平为 B × M × C，再计算 OT，将文本特征对齐到图像空间。
+    """
 
+    def __init__(self, epsilon=0.1, niter=50):  # 增大 eps
+        super().__init__()
+        self.epsilon = epsilon
+        self.niter = niter
+    
+    def optimal_transport(self, text_feats, image_feats):
+        """
+        使用最优传输算法计算文本特征 A 和 图像特征 B 之间的对齐。
+        
+        参数：
+        - text_feats: 文本特征，形状 [L, N]
+        - image_feats: 图像特征，形状 [L, M]
+        - epsilon: Sinkhorn 算法的正则化因子
+        - max_iter: Sinkhorn 算法的最大迭代次数
+        
+        返回：
+        - aligned_A: 对齐后的文本特征，形状与 B 相同 [L, M]
+        """
+        L1, N = text_feats.shape
+        L2, M = image_feats.shape
+        assert L1 == L2, "Batch size does not match."
+        
+        # 计算代价矩阵
+        cost_matrix = compute_cost_matrix(text_feats, image_feats, cost_function="euclidean")
+        exp_term = torch.exp(-cost_matrix / self.epsilon)  # 转换成 Sinkhorn 算法的形式
+        
+        # Sinkhorn 算法：计算最优传输矩阵
+        u = torch.ones(cost_matrix.shape[0], 1).to(text_feats.device)  # 初始化 u
+        v = torch.ones(cost_matrix.shape[1], 1).to(text_feats.device)  # 初始化 v
+
+        prev_u, prev_v = u.clone(), v.clone()
+        
+        for _ in range(self.niter):
+            u = 1.0 / (torch.sum(exp_term * v.T, dim=1, keepdim=True)+ 1e2)  # 更新 u_i
+            v = 1.0 / (torch.sum(exp_term.T * u.T, dim=1, keepdim=True)+ 1e2)  # 更新 v_j
+            # 计算u和v的变化量
+            u_diff = torch.norm(u - prev_u, p=2)
+            v_diff = torch.norm(v - prev_v, p=2)
+            # print(f"Sinkhorn算法迭代 {_+1}, u_diff: {u_diff}, v_diff: {v_diff}")
+            if u_diff < 0.01 and v_diff < 0.01:
+                # print(f"Sinkhorn算法收敛，迭代次数: {_+1}")
+                break
+            # 更新前一次的 u 和 v
+            prev_u, prev_v = u.clone(), v.clone()
+        
+        # 计算最优传输矩阵
+        transport_matrix = torch.exp(-cost_matrix * self.epsilon)*u*v.T   # 计算最优传输矩阵
+        
+        # 将最优传输矩阵应用于 A，以对齐 A 到 B
+        aligned_A = torch.matmul(image_feats, transport_matrix.T)  # 对齐特征 A 到 B
+        aligned_B = torch.matmul(text_feats, transport_matrix)  # 对齐特征 B 到 A
+        
+        return aligned_A, aligned_B
+
+
+    def forward(self, text: torch.Tensor, image: torch.Tensor) -> torch.Tensor:
+        """
+        对文本特征和图像特征进行最优传输对齐
+        参数：
+            text_feats: [B, N, D] 文本特征
+            image_feats: [B, C, H, W] 或 [B, C, D_s, H, W] 图像特征
+        返回：
+            对齐后的文本特征
+        """
+
+        B, N, C1 = text.shape
+        if image.dim() == 4:  # 处理二维图像特征 [B, C, H, W]
+            B2, C2, H, W = image.shape
+            M = H * W
+        elif image.dim() == 5:  # 处理三维图像特征 [B, C, D_s, H, W]
+            B2, C2, D, H, W = image.shape
+            M = D * H * W
+                
+        assert B == B2 and C1 == C2, "Batch size or channel dimensions do not match."
+
+        text_feats = text.permute(0, 2, 1)  # [B, N, C1] -> [B, C1, N]
+        text_feats = text_feats.view(-1, N) # [B, C1, N] -> [B*C1, N]
+
+        image_feats = image.view(B, C2, -1)  # [B, C2, H, W] -> [B, C2, H*W] or [B, C2, D_s, H, W] -> [B, C2, D_s*H*W]
+        image_feats = image_feats.view(-1, M)  # [B, C2, M] -> [B*C2, M]
+
+        aligned_text, aligned_image = self.optimal_transport(text_feats, image_feats)  # [B*C1, M] -> [B*C1, N]
+
+        aligned_text = aligned_text.view(B, C1, N)  # [B*C1, N] -> [B, C1, N]
+        aligned_text = aligned_text.permute(0, 2, 1)  # [B, C1, N] -> [B, N, C1]
+
+        aligned_image = aligned_image.view(B, C2, M)  # [B*C2, M] -> [B, C2, M]
+        aligned_image = aligned_image.view(B, C2, *image.shape[2:])
+
+        return aligned_text, aligned_image
 
 
 class I2I_OptimalTransportAligner(nn.Module):
@@ -373,3 +652,44 @@ class I2I_OTFeaturesFusion(nn.Module):
     
 # endregion
 
+# region 文本特征映射
+class TextMapping(nn.Module):
+    """
+    文本特征映射：
+      - 输入 feat: B×N×D_text
+      - 输出 mapped: B×N×D_mapped
+    """
+    def __init__(self, in_channels: int, out_channels: int, num_layers: int = 2):
+        super().__init__()
+        self.layers = nn.ModuleList()
+        for _ in range(num_layers):
+            # 每个block 用一个 Sequential 包两层 Convolution
+            block = nn.Sequential(
+                Convolution(
+                    spatial_dims=1,
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    kernel_size=3,
+                    padding=1,
+                    conv_only=True,
+                ),
+                Convolution(
+                    spatial_dims=1,
+                    in_channels=out_channels,
+                    out_channels=out_channels,
+                    kernel_size=3,
+                    padding=1,
+                    conv_only=True,
+                ),
+            )
+            self.layers.append(block)
+            # 下一轮的 in_channels 要变成 out_channels
+            in_channels = out_channels
+
+    def forward(self, feat: torch.Tensor) -> torch.Tensor:
+        # feat: [B, N, D_text] → [B, D_text, N]
+        x = feat.permute(0, 2, 1)
+        for block in self.layers:
+            x = block(x)
+        # [B, D_mapped, N] → [B, N, D_mapped]
+        return x.permute(0, 2, 1)

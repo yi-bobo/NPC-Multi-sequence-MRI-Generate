@@ -208,7 +208,7 @@ class DiffusionUNet(nn.Module):
 
         return out
 
-from Model.Net.CPC_BM_Net.condition import TextEncoder, CondImageEncoder, T2I_OptimalTransportAligner
+from Model.Net.CPC_BM_Net.condition import TextEncoder, CondImageEncoder, T2I_OTF
 
 class ConditionalDiffusionUNet(nn.Module):
     """
@@ -245,7 +245,7 @@ class ConditionalDiffusionUNet(nn.Module):
         # //?条件图像编码
         self.cond_image_encode = CondImageEncoder(spatial_dims=spatial_dims, cond_channels=cond_channels, channels=channels)
         # //?文本-图像 最优化特征对齐
-        self.text_cond_ot = T2I_OptimalTransportAligner(epsilon=epsilon, niter=niter)
+        self.text_cond_ot_fusion = T2I_OTF(epsilon=epsilon, niter=niter, spatial_dims=spatial_dims, channels=channels)
 
         # 2.Input Convolution
         self.conv_in = Convolution(

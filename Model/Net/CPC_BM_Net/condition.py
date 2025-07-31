@@ -1,3 +1,6 @@
+import sys
+sys.path.append("/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/")
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -147,46 +150,44 @@ class CondImageEncoder(nn.Module):
 #         print(f"特征[{i}] shape: {feat.shape}")
 
 # region 文本-图像 特征对齐
-from Model.Net.CPC_BM_Net.condition_function import compute_cost_matrix
-    
-class T2I_OT_AdapGating_Fusion(nn.Module):
-    def __init__(self, epsilon, niter, spatial_dims, channels, use_sigmoid=False):
+
+class T2I_OTGatedFusion(nn.Module):
+    def __init__(self, epsilon=0.1, niter=50, spatial_dims=3, channels=64, use_sigmoid=False):
         super().__init__()
-        # //? OT参数
         self.epsilon = epsilon
         self.niter = niter
-
-        # //? AdaptiveGating
+        self.spatial_dims = spatial_dims
         self.use_sigmoid = use_sigmoid
-        ConvNd = {1:nn.Conv1d, 2:nn.Conv2d, 3:nn.Conv3d}[spatial_dims]
+
+        # Conv 选择 (2D or 3D)
+        ConvNd = {2: nn.Conv2d, 3: nn.Conv3d}[spatial_dims]
         self.gate_conv = nn.Sequential(
-            ConvNd(channels*2, channels, kernel_size=1),
-            nn.ReLU(inplace=True),
+            ConvNd(channels * 2, channels, kernel_size=1),
+            nn.ReLU(inplace=False),
             ConvNd(channels, channels, kernel_size=1),
             nn.Sigmoid()
         )
 
-    def optimal_transport(self, text_feats, image_feats):
-        """
-        使用最优传输算法计算文本特征 A 和 图像特征 B 之间的对齐。
-        
-        参数：
-        - text_feats: 文本特征，形状 [L, N]
-        - image_feats: 图像特征，形状 [L, M]
-        - epsilon: Sinkhorn 算法的正则化因子
-        - max_iter: Sinkhorn 算法的最大迭代次数
-        
-        返回：
-        - aligned_A: 对齐后的文本特征，形状与 B 相同 [L, M]
-        """
+    def compute_cost_matrix(self, A, B):
+        """欧几里得距离代价矩阵"""
+        L1, N = A.shape
+        L2, M = B.shape
+        assert L1 == L2 , "Features must have the same dimension."
+        A_sq = A.pow(2).sum(dim=1, keepdim=True)
+        B_sq = B.pow(2).sum(dim=1, keepdim=True).T
+        cost_matrix = torch.zeros(N, M).to(A.device)
+        cost_matrix = torch.cdist(A.T, B.T, p=2)  # 计算欧几里得距离
+        return cost_matrix
+
+    def compute_ot(self, text_feats, image_feats):
+        """Sinkhorn OT 对齐 (text_feats: [L,N], image_feats: [L,M])"""
         L1, N = text_feats.shape
         L2, M = image_feats.shape
-        assert L1 == L2, "Batch size does not match."
-        
-        # 计算代价矩阵
-        cost_matrix = compute_cost_matrix(text_feats, image_feats, cost_function="euclidean")
-        exp_term = torch.exp(-cost_matrix / self.epsilon)  # 转换成 Sinkhorn 算法的形式
-        
+        assert L1 == L2, "Batch size mismatch."
+
+        cost_matrix = self.compute_cost_matrix(text_feats, image_feats)
+        exp_term = torch.exp(-cost_matrix / self.epsilon)
+
         # Sinkhorn 算法：计算最优传输矩阵
         u = torch.ones(cost_matrix.shape[0], 1).to(text_feats.device)  # 初始化 u
         v = torch.ones(cost_matrix.shape[1], 1).to(text_feats.device)  # 初始化 v
@@ -214,77 +215,80 @@ class T2I_OT_AdapGating_Fusion(nn.Module):
         aligned_B = torch.matmul(text_feats, transport_matrix)  # 对齐特征 B 到 A
         
         return aligned_A, aligned_B
-    
-    def OT(self, text: torch.Tensor, image: torch.Tensor) -> torch.Tensor:
-        """
-        对文本特征和图像特征进行最优传输对齐
-        参数：
-            text_feats: [B, N, D] 文本特征
-            image_feats: [B, C, H, W] 或 [B, C, D_s, H, W] 图像特征
-        返回：
-            对齐后的文本特征
-        """
 
-        B, C1, N = text.shape
-        if image.dim() == 4:  # 处理二维图像特征 [B, C, H, W]
+    def align(self, text, image):
+        """
+        text:  [B,C,N]
+        image: [B,C,H,W] or [B,C,D,H,W]
+        """
+        B, C, N = text.shape
+
+        # 图像展开
+        if image.dim() == 4:     # 2D: [B,C,H,W]
             B2, C2, H, W = image.shape
             M = H * W
-        elif image.dim() == 5:  # 处理三维图像特征 [B, C, D_s, H, W]
+            image_shape = (B, C, H, W)
+        elif image.dim() == 5:   # 3D: [B,C,D,H,W]
             B2, C2, D, H, W = image.shape
             M = D * H * W
-                
-        assert B == B2 and C1 == C2, "Batch size or channel dimensions do not match."
+            image_shape = (B, C, D, H, W)
+        else:
+            raise ValueError("Image must be 4D or 5D tensor.")
+        assert B == B2 and C == C2, "Batch/Channel mismatch."
 
-        text_feats = text.view(-1, N) # [B, C1, N] -> [B*C1, N]
+        text_feats = text.view(-1, N)                  # [B*C,N]
+        image_feats = image.view(B, C, -1).view(-1, M) # [B*C,M]
 
-        image_feats = image.view(B, C2, -1)  # [B, C2, H, W] -> [B, C2, H*W] or [B, C2, D_s, H, W] -> [B, C2, D_s*H*W]
-        image_feats = image_feats.view(-1, M)  # [B, C2, M] -> [B*C2, M]
+        aligned_text, aligned_image = self.compute_ot(text_feats, image_feats)
 
-        aligned_text, aligned_image = self.optimal_transport(text_feats, image_feats)  # [B*C1, M] -> [B*C1, N]
-
-        aligned_text = aligned_text.view(B, C1, N)  # [B*C1, N] -> [B, C1, N]
-
-        aligned_image = aligned_image.view(B, C2, M)  # [B*C2, M] -> [B, C2, M]
-        aligned_image = aligned_image.view(B, C2, *image.shape[2:])
-
+        aligned_text = aligned_text.view(B, C, N)
+        aligned_image = aligned_image.view(*image_shape)
         return aligned_text, aligned_image
-    
-    def AGF(self, text, image):
-        B, C1, D, H, W = image.shape
-        _, C2, N = text.shape
-        assert C1 == C2  # 确保数据维度相同
 
-        # 1. 把 text_feat reshape / 插值到和 image_feat 相同的空间维
-        text_feat_reshape = text.view(B, C, 1, 1, -1)  # (B, C, 1, 1, N)
-        text_feat_reshape = F.interpolate(
-            text_feat_reshape, size=(D, H, W), mode="trilinear", align_corners=False
-        )  # (B, C, D, H, W)
-
-        # 计算门控权重: [B, C_t] -> [B, C_i]
-        gate = self.gate_conv(torch.cat([text_feat_reshape, image], dim=1))
-        if self.use_sigmoid:
-            gate = torch.sigmoid(gate)  # [B, C, D, H, W]
-
-        fusion_feat = image * (1 - gate) + text_feat_reshape * gate
-
-        return fusion_feat
-    
-    def forward(self, text, image):
-        """文本图像特征最优化传输对齐后自适应门控融合
-
-        Args:
-            text: [B,C,N]
-            image: [B,C,D,H,W]
-
-        Returns:
-            fusion: [B,C,D,H,W]
+    def gated_fusion(self, text, image):
         """
+        自适应门控融合
+        text:  [B,C,N]  (OT 对齐后的文本特征)
+        image: [B,C,H,W] or [B,C,D,H,W]
+        """
+        B, C, N = text.shape
 
-        t_alig, _ = self.OT(text, image)
-        fusion_feat = self.AGF(t_alig, image)
+        # 文本特征 reshape 到和图像特征同维度
+        if image.dim() == 4:
+            _, _, H, W = image.shape
+            text_reshape = text.view(B, C, 1, 1, N) if self.spatial_dims == 3 else text.view(B, C, 1, N)
+            text_reshape = F.interpolate(
+                text_reshape, size=(H, W), mode="bilinear", align_corners=False
+            )
+        elif image.dim() == 5:
+            _, _, D, H, W = image.shape
+            text_reshape = text.view(B, C, 1, 1, N)
+            text_reshape = F.interpolate(
+                text_reshape, size=(D, H, W), mode="trilinear", align_corners=False
+            )
+        else:
+            raise ValueError("Image must be 4D or 5D tensor.")
 
+        # 拼接 + 门控卷积
+        fused_input = torch.cat([text_reshape, image], dim=1)  # [B,2C,...]
+        gate = self.gate_conv(fused_input)
+        if self.use_sigmoid:
+            gate = torch.sigmoid(gate)
+
+        # 融合
+        fusion_feat = image * (1 - gate) + text_reshape * gate
         return fusion_feat
-    
+
+    def forward(self, text, image):
+        """
+        text:  [B,C,N]
+        image: [B,C,H,W] or [B,C,D,H,W]
+        return: fusion_feat: [B,C,H,W] or [B,C,D,H,W]
+        """
+        aligned_text, _ = self.align(text, image)
+        fusion_feat = self.gated_fusion(aligned_text, image)
+        return fusion_feat
+
 # #################################################################
 # # test
 # import sys
@@ -306,3 +310,153 @@ class T2I_OT_AdapGating_Fusion(nn.Module):
 # fusion = model(t, c)
 
 # print("The shape of fusion feature is", fusion.shape)
+
+class T2I_OTF(nn.Module):
+    def __init__(self, 
+                 epsilon: float, niter: int,  # //* Sinkhorn算法参数
+                 spatial_dims: int, channels: list[int], use_sigmoid: bool=False
+                 ):
+        super().__init__()
+        self.fusion_blocks = nn.ModuleList()
+        self.length = len(channels)
+        for i in range(len(channels)):
+            ch = channels[i]
+            fusion_block = T2I_OTGatedFusion(epsilon=epsilon, niter=niter,
+                                             spatial_dims=spatial_dims, 
+                                             channels=ch)
+            self.fusion_blocks.append(fusion_block)
+
+    def forward(self,
+                text_feat_list,
+                cond_feat_list):
+        "多尺度文本特征和图像特征OT对齐+门控融合"
+        fusion_feat_list = []
+        assert len(text_feat_list) == len(cond_feat_list) == self.length, "Mismatch in number of features"
+
+        for i, fusion_block in enumerate(self.fusion_blocks):
+            t = text_feat_list[i]
+            c = cond_feat_list[i]
+            fusion_feat = fusion_block(t, c)
+            fusion_feat_list.append(fusion_feat)
+
+        return fusion_feat_list
+
+# if __name__ == "__main__":
+#     from typing import List
+
+#     # 参数
+#     epsilon = 0.1
+#     niter = 50
+#     spatial_dims = 3
+#     channels = [16, 32, 64]   # 多尺度通道数
+#     B = 2                     # batch size
+
+#     # 构建 T2I_OTF 模型
+#     model = T2I_OTF(epsilon=epsilon, niter=niter,
+#                     spatial_dims=spatial_dims, channels=channels)
+#     model.eval()
+
+#     # 构造多尺度假数据
+#     text_feat_list=[
+#         torch.randn(B,16,21),
+#         torch.randn(B,32,21),
+#         torch.randn(B,64,21),
+#     ]
+#     cond_feat_list=[
+#         torch.randn(B,16,8,256,256),
+#         torch.randn(B,32,4,128,128),
+#         torch.randn(B,64,2,64,64),
+#     ]
+
+#     # 前向传播
+#     with torch.no_grad():
+#         fusion_feat_list = model(text_feat_list, cond_feat_list)
+
+#     # 打印结果 shape
+#     print(f"输入尺度数: {len(channels)}")
+#     for i, feat in enumerate(fusion_feat_list):
+#         print(f"Fusion [{i}] shape: {feat.shape}")
+
+
+# region 条件特征融合
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class DynamicConvFiLM(nn.Module):
+    def __init__(self, channels,
+                 kernel_size=3, K=4, spatial_dims=3):
+        """
+        动态卷积 + FiLM 条件融合模块
+
+        Args:
+            channels: 网络特征通道数
+            kernel_size: 动态卷积核大小
+            K: 多核加权动态卷积的核数
+            spatial_dims: 2 or 3
+        """
+        super().__init__()
+        self.K = K
+        self.channels = channels
+        self.kernel_size = kernel_size
+        ConvNd = {2: nn.Conv2d, 3: nn.Conv3d}[spatial_dims]
+        PoolNd = {2: nn.AdaptiveAvgPool2d, 3: nn.AdaptiveAvgPool3d}[spatial_dims]
+
+        # 多核卷积核参数: K 个卷积核共享
+        self.weight = nn.Parameter(
+            torch.randn(K, channels, channels, *(kernel_size,) * spatial_dims)
+        )
+        self.bias = nn.Parameter(torch.zeros(K, channels))
+
+        # 条件特征 -> 动态权重 α_i
+        self.alpha_gen = nn.Sequential(
+            PoolNd(1),
+            ConvNd(channels, K, kernel_size=1),
+            nn.Softmax(dim=1)
+        )
+
+        # 条件特征 -> FiLM (γ, β)
+        self.gamma_gen = ConvNd(channels, channels, kernel_size=1)
+        self.beta_gen = ConvNd(channels, channels, kernel_size=1)
+
+    def forward(self, net_feat, cond_feat):
+        """
+        net_feat: [B, C_in, D, H, W] or [B, C_in, H, W]
+        cond_feat: [B, C_cond, D, H, W] or [B, C_cond, H, W]
+        """
+        assert net_feat.shape[1] == cond_feat.shape[1] == self.channels, "Mismatch of fusion feature dimensions"
+
+        # 1. 动态卷积 (多核加权)
+        alpha = self.alpha_gen(cond_feat)  # [B, K, 1, 1, (1)]
+        out = 0
+        for i in range(self.K):
+            out += alpha[:, i:i+1] * F.conv3d(
+                net_feat, self.weight[i], self.bias[i], padding=self.kernel_size // 2
+            ) if net_feat.dim() == 5 else alpha[:, i:i+1] * F.conv2d(
+                net_feat, self.weight[i], self.bias[i], padding=self.kernel_size // 2
+            )
+
+        # 2. FiLM 条件调制
+        gamma = self.gamma_gen(cond_feat)  # [B, C_out, ...]
+        beta = self.beta_gen(cond_feat)
+        out = gamma * out + beta
+
+        return out
+
+# if __name__ == "__main__":
+#     from typing import List
+
+#     # 参数
+#     n = torch.randn(4,32,8,256,256)
+#     c = torch.randn(4,32,8,256,256)
+
+#     # 构建 T2I_OTF 模型
+#     model = DynamicConvFiLM(channels=32)
+#     model.eval()
+
+#     # 前向传播
+#     with torch.no_grad():
+#         feat = model(n, c)
+
+    
+#     print(f"Fusion shape: {feat.shape}")
