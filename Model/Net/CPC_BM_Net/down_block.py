@@ -14,9 +14,12 @@ class DownSample(nn.Module):
                  out_channels: int,
                  stride: list[int] = (2,2,2),
                  kernel_size: list[int] = (3,3,3),
-                 padding: list[int] = (1,1,1)) -> None:
+                 padding: list[int] = (1,1,1),
+                 only_down_HW: bool = False) -> None:
         super().__init__()
         self.in_channels = in_channels
+        if only_down_HW:
+            stride, kernel_size, padding = (1, 2, 2), (1, 3, 3), (0, 1, 1)
         self.down = Convolution(
             spatial_dims=spatial_dims,
             in_channels=in_channels,
@@ -45,9 +48,12 @@ class DiffusionDownSample(nn.Module):
                  out_channels: int,
                  stride: list[int] = (2,2,2),
                  kernel_size: list[int] = (3,3,3),
-                 padding: list[int] = (1,1,1)) -> None:
+                 padding: list[int] = (1,1,1),
+                 only_down_HW: bool = False) -> None:
         super().__init__()
         self.in_channels = in_channels
+        if only_down_HW:
+            stride, kernel_size, padding = (1, 2, 2), (1, 3, 3), (0, 1, 1)
         self.down = Convolution(
             spatial_dims=spatial_dims,
             in_channels=in_channels,

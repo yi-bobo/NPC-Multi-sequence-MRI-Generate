@@ -30,7 +30,7 @@ class ResnetBlock(nn.Module):
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=3,
-            stride=1,
+            strides=1,
             padding=1,
             conv_only=True
         )
@@ -46,7 +46,7 @@ class ResnetBlock(nn.Module):
             in_channels=out_channels,
             out_channels=out_channels,
             kernel_size=3,
-            stride=1,
+            strides=1,
             padding=1,
             conv_only=True
         )
@@ -61,7 +61,7 @@ class ResnetBlock(nn.Module):
                 in_channels=in_channels,
                 out_channels=out_channels,
                 kernel_size=1,
-                stride=1,
+                strides=1,
                 padding=0,
                 conv_only=True
             )
