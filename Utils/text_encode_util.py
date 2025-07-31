@@ -116,7 +116,17 @@ def precompute_embeddings(txt_path, output_path, device="cuda"):
 
 if __name__ == "__main__":
     # 修改路径
-    txt_path = "./Split/zhongshan2/test_with_info.txt"
-    output_path = "./Split/zhongshan2/test_with_info.pt"
+    txt_path = "./Split/foshan2/train_with_info.txt"
+    output_path = "./Split/foshan2/train_with_info.pt"
+    device = torch.device("cuda:7" if torch.cuda.is_available() else "cpu")
+    precompute_embeddings(txt_path, output_path, device)
+
+    txt_path = "./Split/foshan2/val_with_info.txt"
+    output_path = "./Split/foshan2/val_with_info.pt"
+    device = torch.device("cuda:7" if torch.cuda.is_available() else "cpu")
+    precompute_embeddings(txt_path, output_path, device)
+
+    txt_path = "./Split/foshan2/test_with_info.txt"
+    output_path = "./Split/foshan2/test_with_info.pt"
     device = torch.device("cuda:7" if torch.cuda.is_available() else "cpu")
     precompute_embeddings(txt_path, output_path, device)

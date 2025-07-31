@@ -140,7 +140,7 @@ class DownBlock(nn.Module):
             )
         self.resnets = nn.ModuleList(resnets)
 
-        # 2️⃣ 可选下采样模块
+        # 2️⃣ 是否只在 H 和 W 维度下采样
         if add_downsample:
             if resblock_updown:
                 # 使用可学习的 ResNetBlock(down=True) 实现下采样
@@ -163,8 +163,15 @@ class DownBlock(nn.Module):
                     padding=downsample_padding,
                 )
         else:
-            # 不做下采样
-            self.downsampler = None
+            # 只在H和W维度下采样
+            self.downsampler = DiffusionUnetDownsample(
+                    spatial_dims=spatial_dims,
+                    num_channels=out_channels,
+                    use_conv=True,
+                    out_channels=out_channels,
+                    strides=(1, 2, 2),  # 只在 H 和 W 维度下采样
+                    padding=downsample_padding,
+                )
 
     def forward(
         self,
@@ -319,6 +326,7 @@ class DiffusionUnetDownsample(nn.Module):
         num_channels: int,
         use_conv: bool,
         out_channels: int | None = None,
+        strides: tuple[int, ...] = (2, 2, 2),
         padding: int = 1
     ) -> None:
         """
@@ -327,6 +335,7 @@ class DiffusionUnetDownsample(nn.Module):
             num_channels: 输入特征图的通道数。
             use_conv:      是否使用卷积实现下采样；否则使用平均池化。
             out_channels:  下采样后输出通道数；若为 None，则保持与 num_channels 一致。
+            strides:         下采样的步幅，默认为 (2, 2, 2)，表示在所有空间维度下采样; (1,2,2) 表示只在 H 和 W 维度下采样。
             padding:       卷积时的 padding，通常设为 kernel_size//2 以居中感受野。
         """
         super().__init__()
@@ -343,7 +352,7 @@ class DiffusionUnetDownsample(nn.Module):
                 spatial_dims=spatial_dims,
                 in_channels=self.num_channels,
                 out_channels=self.out_channels,
-                strides=2,
+                strides=strides,
                 kernel_size=3,
                 padding=padding,
                 conv_only=True,

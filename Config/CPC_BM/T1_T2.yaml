@@ -1,0 +1,90 @@
+train:   # 训练参数
+  is_train: True  # 是否训练
+  continue_train: false  # 是否接着上次训练
+  multi_gpu: false  # 是否使用多GPU训练
+  gpu: 1 # 使用GPU序号
+  batch_size: 1  # 批大小
+  num_workers: 10  # 线程数
+  max_epochs: 300  # 最大训练轮数
+  epoch_start: 0  # 起始训练轮数
+  save_freq: 10  # 保存间隔
+  val_freq: 30  # 验证间隔
+  log_freq: 100  # 日志记录间隔
+  seed: 1234  # 随机种子
+  model_name: ""  # model_with_perceputual_txt
+  is_text: true  # 是否使用文本输入
+  is_image: true  # 是否使用图像输入
+
+val:
+  overlap: 0.5
+
+path:
+  save_dir: "./Result/CPC_BM/"
+  checkpoint_path: ""
+
+loss:
+  is_perceptual: true  # 是否使用感知损失
+  loss_type:  'l1' # options {'l1', 'l2'}
+  objective: 'ysubx' # options {'grad', 'noise', 'ysubx'}
+  lambda_con: 2.0   # 一致性损失权重
+  lambda_rec: 5.0   # 重建损失权重
+  lambda_cycle: 7.0   # 循环损失权重
+  lambda_perceptual: 6.0   # 感知损失权重
+
+ddbm:
+  num_timesteps: 1000
+  max_var: 1.0
+  mt_type: 'linear' # options {'linear', 'sin'}
+  sample_mid_step: false  # 是否对中间采样点进行采样
+  condition_key: 'nocond'  # 是否采用条件引导生成
+  sample_type: 'linear'  # options {'linear', 'cosine'}
+  sample_step: 50  # 采样步数
+  skip_sample: true  # 是否跳步采样
+  eta: 1  # 噪声强度
+
+net:
+  spatial_dims: 3  # 2D网络
+  in_channels: 1  # 输入通道数
+  out_channels: 1  # 输出通道数
+  condition_image_in_channels: 3  # 条件输入通道数
+  condition_text_dim: 256
+  with_conditioning: true
+  num_res_blocks: [2, 2, 2, 2]  # 每层的残差块数量
+  channels: [32, 64, 128, 256]  # 每层的通道数
+  attention_levels: [False, False, False, True]  # 注意力层级,在第三四层使用注意力机制
+  norm_num_groups: 32  # 归一化的组数
+  norm_eps: 0.000001  # 归一化的epsilon值
+  resblock_updown: False  # 残差块是否使用上采样和下采样
+  num_head_channels: [8, 8, 8, 8]   # 注意力头的通道数
+  with_conditioning: False  # 是否使用条件输入
+  transformer_num_layers: 0  # 使用2层Transformer块
+  cross_attention_dim: null  # 使用64维的跨注意力上下文
+  upcast_attention: False  # 不使用全精度的注意力操作
+  dropout_cattn: 0.0  # dropout率
+  include_fc: True  # 是否包含全连接层
+  use_combined_linear: False  # 是否使用联合线性层
+  use_flash_attention: False  # 不使用闪存注意力
+  ot_eps: 0.001  # 软交叉熵的epsilon值
+  ot_iters: 1000  # 软交叉熵的迭代次数
+
+
+data:   # 数据参数
+  split_dir:  "/data1/weiyibo/NPC-MRI/Code/Pctch_model/Split/zhongshan2" # "/data1/weiyibo/NPC-MRI/Split/Resample_Register_NII_zhongshan2/"
+  norm_mode: "global_norm"
+  resize_image_shape: [36, 256, 256]
+  patch_image_shape: [8, 256, 256]
+  sour_img_name: "T1_data"
+  targ_img_name: "T2_data"
+  overlap: 0.1
+  num_random_crops: 16
+
+optim:  # 生成器优化器参数
+  optimizer:
+    name: "AdamW"
+    params:
+      lr: 0.0001
+  scheduler:
+    name: "GradualWarmupScheduler"
+    params:
+      multiplier: 2.0
+      total_epoch: 5

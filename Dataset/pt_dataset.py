@@ -46,7 +46,7 @@ class npy_3D_dataset(Dataset):
                 for line in f.readlines():
                     self.data_list.append(line)
 
-            self.text_data = torch.load(os.path.join(self.split_dir, self.mode + 'with_info.pt'))
+            self.text_data = torch.load(os.path.join(self.split_dir, self.mode + '_with_info.pt'))
 
 
     def __getitem__(self, index):
