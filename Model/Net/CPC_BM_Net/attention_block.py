@@ -1,3 +1,5 @@
+import sys
+sys.path.append("/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/")
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

@@ -379,9 +379,6 @@ class T2I_OTF(nn.Module):
 
 
 # region 条件特征融合
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
 class DynamicConvFiLM(nn.Module):
     def __init__(self, channels,

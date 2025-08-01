@@ -49,9 +49,12 @@ class DiffusionUpSample(nn.Module):
                  out_channels: int,
                  stride: tuple[int] = (2,2,2),
                  kernel_size: tuple[int] = (3,3,3),
-                 padding: tuple[int] = (1,1,1)):
+                 padding: tuple[int] = (1,1,1),
+                 only_up_HW: bool = False) -> None:
         super().__init__()
         self.in_channels = in_channels
+        if only_up_HW:
+            stride, kernel_size, padding = (1, 2, 2), (1, 3, 3), (0, 1, 1)
         self.up = Convolution(
             spatial_dims=spatial_dims,
             in_channels=in_channels,
