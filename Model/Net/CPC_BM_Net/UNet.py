@@ -52,7 +52,8 @@ class DiffusionModelUNet(nn.Module):
         self.attention_levels = attention_levels
         self.num_head_channels = num_head_channels
         self.with_conditioning = with_conditioning
-        self.shallow_layer_threshold = shallow_layer_threshold
+        self.is_text = is_text
+        self.is_image = is_image
 
         # //*条件编码
         if is_text:
@@ -75,6 +76,7 @@ class DiffusionModelUNet(nn.Module):
             padding=1,
             conv_only=True,
         )
+        self.conv_fusion_block = DynamicConvFiLM(channels=channels[0])
 
         # time
         time_embed_dim = channels[0] * 4
@@ -86,11 +88,19 @@ class DiffusionModelUNet(nn.Module):
 
         # down
         self.down_blocks = nn.ModuleList([])
+        self.cond_net_fusion_blocks = nn.ModuleList([])
         output_channel = channels[0]
         for i in range(len(channels)):
             input_channel = output_channel
             output_channel = channels[i]
             is_final_block = i == len(channels) - 1
+            only_hw = (i == len(channels) - 1)
+            if is_final_block:
+                fusion_block = MultiHeadAttention(spatial_dims=spatial_dims, channels=channels[i], cross_attention=True)
+                self.cond_net_fusion_blocks.append(fusion_block)
+            else:
+                fusion_block = DynamicConvFiLM(channels=channels[i])
+                self.cond_net_fusion_blocks.append(fusion_block)
 
             down_block = get_down_block(
                 spatial_dims=spatial_dims,
@@ -98,6 +108,7 @@ class DiffusionModelUNet(nn.Module):
                 out_channels=output_channel,
                 temb_channels=time_embed_dim,
                 num_res_blocks=num_res_blocks[i],
+                only_hw=only_hw,
                 norm_num_groups=norm_num_groups,
                 norm_eps=norm_eps,
                 add_downsample=not is_final_block,
@@ -135,42 +146,55 @@ class DiffusionModelUNet(nn.Module):
         )
 
         # up
-        self.up_blocks = nn.ModuleList([])
-        reversed_block_out_channels = list(reversed(channels))
-        reversed_num_res_blocks = list(reversed(num_res_blocks))
-        reversed_attention_levels = list(reversed(attention_levels))
-        reversed_num_head_channels = list(reversed(num_head_channels)) if isinstance(num_head_channels, list) else [num_head_channels] * len(channels)
-        output_channel = reversed_block_out_channels[0]
-        for i in range(len(reversed_block_out_channels)):
-            prev_output_channel = output_channel
-            output_channel = reversed_block_out_channels[i]
-            input_channel = reversed_block_out_channels[min(i + 1, len(channels) - 1)]
+        self.up_blocks = nn.ModuleList()
+        reversed_block_out_channels = list(reversed(channels))           # e.g. [256, 128, 64, 32]
+        reversed_num_res_blocks   = list(reversed(num_res_blocks))
+        reversed_attn_levels      = list(reversed(attention_levels))
+        reversed_num_head_ch      = (
+            list(reversed(num_head_channels))
+            if isinstance(num_head_channels, list)
+            else [num_head_channels] * len(channels)
+        )
+        num_blocks = len(reversed_block_out_channels)
 
-            is_final_block = i == len(channels) - 1
-
-            up_block = get_up_block(
-                spatial_dims=spatial_dims,
-                in_channels=input_channel,
-                prev_output_channel=prev_output_channel,
-                out_channels=output_channel,
-                temb_channels=time_embed_dim,
-                num_res_blocks=reversed_num_res_blocks[i] + 1,
-                norm_num_groups=norm_num_groups,
-                norm_eps=norm_eps,
-                add_upsample=not is_final_block,
-                resblock_updown=resblock_updown,
-                with_attn=(reversed_attention_levels[i] and not with_conditioning),
-                with_cross_attn=(reversed_attention_levels[i] and with_conditioning),
-                num_head_channels=reversed_num_head_channels[i],
-                transformer_num_layers=transformer_num_layers,
-                cross_attention_dim=cross_attention_dim,
-                upcast_attention=upcast_attention,
-                dropout_cattn=dropout_cattn,
-                include_fc=include_fc,
-                use_combined_linear=use_combined_linear,
-                use_flash_attention=use_flash_attention,
+        for i in range(num_blocks):
+            # 1) 跳跃连接通道数
+            skip_ch = reversed_block_out_channels[i]
+            # 2) 上一层“主干”输出通道数
+            prev_out_ch = reversed_block_out_channels[i]
+            # 3) 本层输出通道（供下一层使用），最后一层保持不变
+            out_ch = (
+                reversed_block_out_channels[i + 1]
+                if i < num_blocks - 1
+                else reversed_block_out_channels[i]
             )
 
+            is_final = False
+            only_hw  = (i == 0)   # 仅在最外层启用 H/W 维度上采样
+
+            up_block = get_up_block(
+                spatial_dims=       spatial_dims,
+                in_channels=        skip_ch,
+                prev_output_channel=prev_out_ch,
+                out_channels=       out_ch,
+                temb_channels=      time_embed_dim,
+                only_hw=            only_hw,
+                num_res_blocks=     reversed_num_res_blocks[i] + 1,
+                norm_num_groups=    norm_num_groups,
+                norm_eps=           norm_eps,
+                add_upsample=       not is_final,
+                resblock_updown=    resblock_updown,
+                with_attn=          (reversed_attn_levels[i] and not with_conditioning),
+                with_cross_attn=    (reversed_attn_levels[i] and with_conditioning),
+                num_head_channels=  reversed_num_head_ch[i],
+                transformer_num_layers= transformer_num_layers,
+                cross_attention_dim=    cross_attention_dim,
+                upcast_attention=       upcast_attention,
+                dropout_cattn=          dropout_cattn,
+                include_fc=             include_fc,
+                use_combined_linear=    use_combined_linear,
+                use_flash_attention=    use_flash_attention,
+            )
             self.up_blocks.append(up_block)
 
         # out
@@ -209,16 +233,26 @@ class DiffusionModelUNet(nn.Module):
         t_emb = t_emb.to(dtype=x.dtype)
         emb = self.time_embed(t_emb)
 
+        if self.is_text:
+            text_feat_list = self.text_encode(text_feat)
+        if self.is_image:
+            image_feat_list = self.cond_image_encode(image_feat)
+        if self.is_text and self.is_image:
+            cond_feat_list = self.text_cond_ot_fusion(text_feat_list, image_feat_list)
+            cond_feat_list = list(reversed(cond_feat_list))
+
         # 2. initial convolution
         h = self.conv_in(x)
-        
-
+        h_cond = cond_feat_list.pop()
+        h = self.conv_fusion_block(h, h_cond)
         # 3. down blocks with conditional fusion
         down_block_res_samples: list[torch.Tensor] = [h]
         
-        for i, downsample_block in enumerate(self.down_blocks):
+        for i, (downsample_block, fusion_block) in enumerate(zip(self.down_blocks, self.cond_net_fusion_blocks)):
             # 下采样块处理
             h, res_samples = downsample_block(hidden_states=h, temb=emb)
+            h_cond = cond_feat_list.pop()
+            h = fusion_block(h, h_cond)
             for residual in res_samples:
                 down_block_res_samples.append(residual)
 

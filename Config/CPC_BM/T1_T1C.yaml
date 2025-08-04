@@ -50,7 +50,7 @@ net:
   out_channels: 1  # 输出通道数
   text_channels: 256  # 文本条件通道数
   image_channels: 3   # 条件图像通道数
-  num_res_blocks: [1, 1, 1, 1]  # 每层的残差块数量
+  num_res_blocks: [2, 2, 2, 2]  # 每层的残差块数量
   channels: [32, 64, 128, 256]  # 每层的通道数
   attention_levels: [False, False, False, True]  # 注意力层级,在第三四层使用注意力机制
   norm_num_groups: 32  # 归一化的组数
@@ -67,8 +67,8 @@ net:
   use_flash_attention: False  # 不使用闪存注意力
   epsilon: 0.1        # OT迭代参数
   niter: 50           # OT 迭代次数
-  is_text: false
-  is_image: false
+  is_text: true
+  is_image: true
 
 # net:
 #   spatial_dims: 3         # Spatial dimension of the data (2D or 3D)
@@ -103,8 +103,8 @@ optim:  # 生成器优化器参数
   optimizer:
     name: "AdamW"
     params:
-      lr_f: 6e-5
-      lr_b: 6e-5
+      lr_f: 1e-4
+      lr_b: 1e-4
   scheduler:
     name: "GradualWarmupScheduler"
     params:

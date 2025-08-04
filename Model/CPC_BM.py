@@ -268,20 +268,20 @@ class CPC_BM(nn.Module):
         # F direction  x_T -> x_0
         self.net_f.train()
         self.optimizer_f.zero_grad()
-        if iters % 10 == 0 and iters != 0:
+        if iters > 50:
             with torch.no_grad():
-                # x_T_bar = self.net_b(x_0, timesteps=T, text_feat=text_con, cond_image=img_con1)
-                x_T_bar = self.net_b(x_0, T)
-            # f3 = self.net_f(x_T_bar, timesteps=T, text_feat=text_con, cond_image=img_con2)
-            f3 = self.net_f(x_T_bar, T)
+                x_T_bar = self.net_b(x_0, timesteps=T, text_feat=text_con, image_feat=img_con1)
+                # x_T_bar = self.net_b(x_0, T)
+            f3 = self.net_f(x_T_bar, timesteps=T, text_feat=text_con, image_feat=img_con2)
+            # f3 = self.net_f(x_T_bar, T)
             loss_cyc = self.loss(f3, x_0)
         else:
             # 其它迭代，force cycle loss to zero
             loss_cyc = torch.tensor(0.0, device=self.device)
-        # f1 = self.net_f(x_t,  timesteps=t, text_feat=text_con, cond_image=img_con2)
-        # f2 = self.net_f(x_T,   timesteps=T, text_feat=text_con, cond_image=img_con2)
-        f1 = self.net_f(x_t,  t)
-        f2 = self.net_f(x_T, T)
+        f1 = self.net_f(x_t,  timesteps=t, text_feat=text_con, image_feat=img_con2)
+        f2 = self.net_f(x_T,   timesteps=T, text_feat=text_con, image_feat=img_con2)
+        # f1 = self.net_f(x_t,  t)
+        # f2 = self.net_f(x_T, T)
 
         loss_rec = (self.loss(f1, x_0) + self.loss(f2, x_0)) * 0.5
         loss_con = self.loss(f1, f2)
@@ -303,20 +303,20 @@ class CPC_BM(nn.Module):
         # B direction  x_0 -> x_T
         self.net_b.train()
         self.optimizer_b.zero_grad()
-        if iters % 10 == 0 and iters != 0:
+        if iters > 50:
             with torch.no_grad():
-                # x_0_bar = self.net_f(x_T, timesteps=T, text_feat=text_con, cond_image=img_con2)
-                x_0_bar = self.net_f(x_T, T)
-            # b3 = self.net_b(x_0_bar, timesteps=T, text_feat=text_con, cond_image=img_con1)
-            b3 = self.net_b(x_0_bar, T)
+                x_0_bar = self.net_f(x_T, timesteps=T, text_feat=text_con, image_feat=img_con2)
+                # x_0_bar = self.net_f(x_T, T)
+            b3 = self.net_b(x_0_bar, timesteps=T, text_feat=text_con, image_feat=img_con1)
+            # b3 = self.net_b(x_0_bar, T)
             loss_cyc = self.loss(b3, x_T)
         else:
             # 其它迭代，force cycle loss to zero
             loss_cyc = torch.tensor(0.0, device=self.device)
-        # b1 = self.net_b(x_t, timesteps=t, text_feat=text_con, cond_image=img_con1)
-        # b2 = self.net_b(x_0, timesteps=T, text_feat=text_con, cond_image=img_con1)
-        b1 = self.net_b(x_t, t)
-        b2 = self.net_b(x_0, T)
+        b1 = self.net_b(x_t, timesteps=t, text_feat=text_con, image_feat=img_con1)
+        b2 = self.net_b(x_0, timesteps=T, text_feat=text_con, image_feat=img_con1)
+        # b1 = self.net_b(x_t, t)
+        # b2 = self.net_b(x_0, T)
 
         loss_rec = (self.loss(b1, x_T) + self.loss(b2, x_T)) * 0.5
         loss_con = self.loss(b1, b2)

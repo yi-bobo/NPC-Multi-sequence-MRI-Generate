@@ -9,59 +9,96 @@ from monai.networks.layers.factories import Pool
 
 class DiffusionUnetDownsample(nn.Module):
     def __init__(
-        self, spatial_dims: int, num_channels: int, use_conv: bool, out_channels: int | None = None, padding: int = 1
+        self,
+        spatial_dims: int,
+        num_channels: int,
+        use_conv: bool,
+        out_channels: int | None = None,
+        padding: int = 1,
+        only_hw: bool = False
     ) -> None:
+        """
+        Args:
+            spatial_dims: 2 or 3, spatial dimensions of the data.
+            num_channels: input channels.
+            use_conv: whether to use convolutional downsampling.
+            out_channels: channels after downsampling (if None, = num_channels).
+            padding: padding size for conv downsample.
+            downsample_hw_only: if True and spatial_dims==3, only downsample H and W dimensions,
+                                keep D (depth) unchanged.
+        """
         super().__init__()
+        self.spatial_dims = spatial_dims
         self.num_channels = num_channels
         self.out_channels = out_channels or num_channels
         self.use_conv = use_conv
+        self.only_hw = only_hw
+        if only_hw:
+            strides, kernel_size, paddings = (1, 2, 2), (1, 3, 3), (0, padding, padding)
+        else:
+            strides, kernel_size, paddings = 2, 3, padding
+
         if use_conv:
+            # Only downsample H and W: stride (1,2,2), kernel_size (1,3,3), pad (0,p,p)
             self.op = Convolution(
-                spatial_dims=spatial_dims,
+                spatial_dims=3,
                 in_channels=self.num_channels,
                 out_channels=self.out_channels,
-                strides=2,
-                kernel_size=3,
-                padding=padding,
+                strides=strides,
+                kernel_size=kernel_size,
+                padding=paddings,
                 conv_only=True,
             )
         else:
+            # Pooling-based downsampling
             if self.num_channels != self.out_channels:
-                raise ValueError("num_channels and out_channels must be equal when use_conv=False")
-            self.op = Pool[Pool.AVG, spatial_dims](kernel_size=2, stride=2)
+                raise ValueError(
+                    "num_channels and out_channels must match when use_conv=False"
+                )
+            else:
+                # Uniform pooling downsample on all dims
+                self.op = Pool[Pool.AVG, self.spatial_dims](
+                    kernel_size=kernel_size,
+                    stride=strides,
+                )
 
     def forward(self, x: torch.Tensor, emb: torch.Tensor | None = None) -> torch.Tensor:
+        # emb not used
         del emb
         if x.shape[1] != self.num_channels:
             raise ValueError(
-                f"Input number of channels ({x.shape[1]}) is not equal to expected number of channels "
-                f"({self.num_channels})"
+                f"Input channels ({x.shape[1]}) != expected ({self.num_channels})"
             )
-        output: torch.Tensor = self.op(x)
-        return output
+        # Apply the selected downsampling operation
+        return self.op(x)
+
 
 class Downsample(nn.Module):
     def __init__(
-        self, spatial_dims: int, num_channels: int, use_conv: bool, out_channels: int | None = None, padding: int = 1
+        self, spatial_dims: int, num_channels: int, use_conv: bool, out_channels: int | None = None, padding: int = 1, only_hw:bool=False,
     ) -> None:
         super().__init__()
         self.num_channels = num_channels
         self.out_channels = out_channels or num_channels
         self.use_conv = use_conv
+        if only_hw:
+            strides, kernel_size, paddings = (1, 2, 2), (1, 3, 3), (0, padding, padding)
+        else:
+            strides, kernel_size, paddings = 2, 3, padding
         if use_conv:
             self.op = Convolution(
                 spatial_dims=spatial_dims,
                 in_channels=self.num_channels,
                 out_channels=self.out_channels,
-                strides=2,
-                kernel_size=3,
-                padding=padding,
+                strides=strides,
+                kernel_size=kernel_size,
+                padding=paddings,
                 conv_only=True,
             )
         else:
             if self.num_channels != self.out_channels:
                 raise ValueError("num_channels and out_channels must be equal when use_conv=False")
-            self.op = Pool[Pool.AVG, spatial_dims](kernel_size=2, stride=2)
+            self.op = Pool[Pool.AVG, spatial_dims](kernel_size=kernel_size, stride=strides)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
 
@@ -81,6 +118,7 @@ class DownBlock(nn.Module):
         in_channels: int,
         out_channels: int,
         temb_channels: int,
+        only_hw:bool,
         num_res_blocks: int = 1,
         norm_num_groups: int = 32,
         norm_eps: float = 1e-6,
@@ -127,6 +165,7 @@ class DownBlock(nn.Module):
                     use_conv=True,
                     out_channels=out_channels,
                     padding=downsample_padding,
+                    only_hw=only_hw,
                 )
         else:
             self.downsampler = None
@@ -159,10 +198,10 @@ class DiffusionDownSample(nn.Module):
                  stride: list[int] = (2,2,2),
                  kernel_size: list[int] = (3,3,3),
                  padding: list[int] = (1,1,1),
-                 only_down_HW: bool = False) -> None:
+                 only_hw: bool = False) -> None:
         super().__init__()
         self.in_channels = in_channels
-        if only_down_HW:
+        if only_hw:
             stride, kernel_size, padding = (1, 2, 2), (1, 3, 3), (0, 1, 1)
         self.down = Convolution(
             spatial_dims=spatial_dims,
@@ -189,11 +228,12 @@ class AttnDownBlock(nn.Module):
         in_channels: int,
         out_channels: int,
         temb_channels: int,
+        only_hw=bool,
         num_res_blocks: int = 1,
         norm_num_groups: int = 32,
         norm_eps: float = 1e-6,
         add_downsample: bool = True,
-        resblock_updown: bool = False,
+        resblock_updown: bool = True,
         downsample_padding: int = 1,
         num_head_channels: int = 1,
         include_fc: bool = True,
@@ -235,27 +275,26 @@ class AttnDownBlock(nn.Module):
         self.resnets = nn.ModuleList(resnets)
 
         self.downsampler: nn.Module | None
-        if add_downsample:
-            if resblock_updown:
-                self.downsampler = DiffusionResnetBlock(
-                    spatial_dims=spatial_dims,
-                    in_channels=out_channels,
-                    out_channels=out_channels,
-                    temb_channels=temb_channels,
-                    norm_num_groups=norm_num_groups,
-                    norm_eps=norm_eps,
-                    down=True,
-                )
-            else:
-                self.downsampler = DiffusionUnetDownsample(
-                    spatial_dims=spatial_dims,
-                    num_channels=out_channels,
-                    use_conv=True,
-                    out_channels=out_channels,
-                    padding=downsample_padding,
-                )
+        if resblock_updown:
+            self.downsampler = DiffusionResnetBlock(
+                spatial_dims=spatial_dims,
+                in_channels=out_channels,
+                out_channels=out_channels,
+                temb_channels=temb_channels,
+                only_hw=only_hw,
+                norm_num_groups=norm_num_groups,
+                norm_eps=norm_eps,
+                down=True,
+            )
         else:
-            self.downsampler = None
+            self.downsampler = DiffusionUnetDownsample(
+                spatial_dims=spatial_dims,
+                num_channels=out_channels,
+                use_conv=True,
+                out_channels=out_channels,
+                padding=downsample_padding,
+                only_hw=only_hw,
+            )
 
     def forward(
         self, hidden_states: torch.Tensor, temb: torch.Tensor, context: torch.Tensor | None = None
@@ -282,6 +321,7 @@ class CrossAttnDownBlock(nn.Module):
         in_channels: int,
         out_channels: int,
         temb_channels: int,
+        only_hw=bool,
         num_res_blocks: int = 1,
         norm_num_groups: int = 32,
         norm_eps: float = 1e-6,
@@ -338,27 +378,26 @@ class CrossAttnDownBlock(nn.Module):
         self.resnets = nn.ModuleList(resnets)
 
         self.downsampler: nn.Module | None
-        if add_downsample:
-            if resblock_updown:
-                self.downsampler = DiffusionResnetBlock(
-                    spatial_dims=spatial_dims,
-                    in_channels=out_channels,
-                    out_channels=out_channels,
-                    temb_channels=temb_channels,
-                    norm_num_groups=norm_num_groups,
-                    norm_eps=norm_eps,
-                    down=True,
-                )
-            else:
-                self.downsampler = DiffusionUnetDownsample(
-                    spatial_dims=spatial_dims,
-                    num_channels=out_channels,
-                    use_conv=True,
-                    out_channels=out_channels,
-                    padding=downsample_padding,
-                )
+        if resblock_updown:
+            self.downsampler = DiffusionResnetBlock(
+                spatial_dims=spatial_dims,
+                in_channels=out_channels,
+                out_channels=out_channels,
+                temb_channels=temb_channels,
+                only_hw=only_hw,
+                norm_num_groups=norm_num_groups,
+                norm_eps=norm_eps,
+                down=True,
+            )
         else:
-            self.downsampler = None
+            self.downsampler = DiffusionUnetDownsample(
+                spatial_dims=spatial_dims,
+                num_channels=out_channels,
+                use_conv=True,
+                out_channels=out_channels,
+                padding=downsample_padding,
+                only_hw=only_hw,
+            )
 
     def forward(
         self, hidden_states: torch.Tensor, temb: torch.Tensor, context: torch.Tensor | None = None

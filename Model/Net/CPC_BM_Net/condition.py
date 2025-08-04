@@ -8,43 +8,96 @@ from monai.networks.blocks import Convolution
 
 # region 文本特征提取
 class TextEncoder(nn.Module):
-    def __init__(self, 
-                 text_channels: int,
-                 channels: list[int],
-                 spatial_dims: int = 1,):
+    """
+    文本编码器：先做多层 1D 卷积提取不同通道数的一维特征序列，
+    然后将这些一维特征广播到与条件图像各尺度相同的 (D,H,W) 大小。
+    """
+    def __init__(
+        self,
+        text_channels: int,
+        channels: list[int],  # e.g. [32, 64, 128, 256]
+    ):
         super().__init__()
-
-        # 1.Input Convolution
+        # 1. 先做 conv1d 将 text_channels -> channels[0]
         self.conv_in = Convolution(
-            spatial_dims=spatial_dims, 
-            in_channels=text_channels, 
+            spatial_dims=1,
+            in_channels=text_channels,
             out_channels=channels[0],
-            padding=1,)
-        
-        # 2.多层次特征提取
-        self.conv_blocks = nn.ModuleList()
-        for i in range(len(channels)-1):
-            in_ch = channels[i]
-            out_ch = channels[i+1]
+            kernel_size=3,
+            padding=1,
+            conv_only=True,
+        )
+        self.conv_block = nn.ModuleList([])
+        for ch in channels:
             conv = Convolution(
-                spatial_dims=spatial_dims, 
-                in_channels=in_ch, 
-                out_channels=out_ch,
+                spatial_dims=1,
+                in_channels=text_channels,
+                out_channels=ch,
+                kernel_size=3,
                 padding=1,
+                conv_only=True,
                 )
-            self.conv_blocks.append(conv)
+            self.conv_block.append(conv)
 
-    def forward(self, text:torch.Tensor)-> torch.Tensor:
+    def forward(
+        self,
+        text: torch.Tensor,
+    ) -> list[torch.Tensor]:
+        """
+        Args:
+            text: torch.Tensor of shape (B, text_channels)
+            cond_feat_list: list of condition image feature tensors, 每项形状 (B, C_i, D_i, H_i, W_i)
+                            长度 len(channels)。
+        Returns:
+            text_feat_list: list of tensors, 与 cond_feat_list 对齐
+                            每项形状 (B, C_i, D_i, H_i, W_i)
+        """
         text_feat_list = []
-
         t = self.conv_in(text)
         text_feat_list.append(t)
-
-        for conv in self.conv_blocks:
-            t = conv(t)
+        for conv in self.conv_block:
+            t = conv(text)
             text_feat_list.append(t)
-
         return text_feat_list
+
+# class TextEncoder(nn.Module):
+#     def __init__(self, 
+#                  text_channels: int,
+#                  channels: list[int],
+#                  spatial_dims: int = 1,):
+#         super().__init__()
+
+#         # 1.Input Convolution
+#         self.conv_in = Convolution(
+#             spatial_dims=spatial_dims, 
+#             in_channels=text_channels, 
+#             out_channels=channels[0],
+#             padding=1,)
+        
+#         # 2.多层次特征提取
+#         self.conv_blocks = nn.ModuleList()
+#         for i in range(len(channels)-1):
+#             in_ch = channels[i]
+#             out_ch = channels[i+1]
+#             conv = Convolution(
+#                 spatial_dims=spatial_dims, 
+#                 in_channels=in_ch, 
+#                 out_channels=out_ch,
+#                 padding=1,
+#                 )
+#             self.conv_blocks.append(conv)
+
+#     def forward(self, text:torch.Tensor)-> torch.Tensor:
+#         text_feat_list = []
+
+#         t = self.conv_in(text)
+#         text_feat_list.append(t)
+
+#         for conv in self.conv_blocks:
+#             t = conv(t)
+#             text_feat_list.append(t)
+
+#         return text_feat_list
     
 # # ============ 测试部分 ============
 # if __name__ == "__main__":
@@ -78,13 +131,15 @@ from Model.Net.CPC_BM_Net.down_sample import Downsample
 from Model.Net.CPC_BM_Net.resnet_block import ResnetBlock
 
 class CondImageEncoder(nn.Module):
-    def __init__(self,
-                 spatial_dims: int,
-                 cond_channels: int,
-                 channels: list[int],):
+    def __init__(
+        self,
+        spatial_dims: int,
+        cond_channels: int,
+        channels: list[int],    # e.g. [32, 64, 128, 256]
+    ):
         super().__init__()
 
-        # Input conv
+        # 1) 初始卷积，把通道变成 channels[0]
         self.conv_in = Convolution(
             spatial_dims=spatial_dims,
             in_channels=cond_channels,
@@ -92,40 +147,98 @@ class CondImageEncoder(nn.Module):
             padding=1
         )
 
-        # DownSample
+        # 2) 构建交替的 ResnetBlock + Downsample，共 len(channels) 次 Downsample
         self.down_blocks = nn.ModuleList()
-        for i in range(len(channels)-1):
-            in_ch = channels[i]
-            out_ch = channels[i+1]
-            if i == (len(channels)-2):
-                only_down_HW = True
-            else:
-                only_down_HW = False
+        for i in range(len(channels)):
+            in_ch  = channels[i]
+            out_ch = channels[-1] if i==(len(channels)-1) else channels[i+1]
+            # 只有最后一次下采样时，才只在 H/W 维度上缩（depth 维保持 1）
+            only_hw = (i == len(channels) - 1)
+            # 下采样块
+            down_block = Downsample(
+                spatial_dims=spatial_dims,
+                num_channels=in_ch,
+                out_channels=in_ch,
+                only_hw=only_hw,
+                use_conv=True
+            )
+            self.down_blocks.append(down_block)
+            # 残差块，保持通道不变
             res_block = ResnetBlock(
                 spatial_dims=spatial_dims,
                 in_channels=in_ch,
-                out_channels=in_ch
+                out_channels=out_ch
             )
             self.down_blocks.append(res_block)
-            down_block = DownSample(
-                spatial_dims=spatial_dims,
-                in_channels=in_ch,
-                out_channels=out_ch,
-                only_down_HW=only_down_HW
-            )
-            self.down_blocks.append(down_block)
 
-    def forward(self, cond_feat:torch.Tensor)-> torch.Tensor:
-        cond_feat_list = []
+            
+
+    def forward(self, cond_feat: torch.Tensor) -> list[torch.Tensor]:
+        # cond_feat: [B, cond_channels, D, H, W]
+        features: list[torch.Tensor] = []
+
+        # 初始 conv，通道→channels[0]，深度不变
         c = self.conv_in(cond_feat)
-        cond_feat_list.append(c)
+        features.append(c)  # [B, 32, D, 256,256]
 
-        for down_block in self.down_blocks:
-            c = down_block(c)
-            if isinstance(down_block, DownSample):
-                cond_feat_list.append(c)
+        # 依次走 Resnet & Downsample，每遇到 Downsample 就 append 输出
+        for block in self.down_blocks:
+            c = block(c)
+            if isinstance(block, Downsample):
+                features.append(c)
 
-        return cond_feat_list
+        return features
+
+# class CondImageEncoder(nn.Module):
+#     def __init__(self,
+#                  spatial_dims: int,
+#                  cond_channels: int,
+#                  channels: list[int],):
+#         super().__init__()
+
+#         # Input conv
+#         self.conv_in = Convolution(
+#             spatial_dims=spatial_dims,
+#             in_channels=cond_channels,
+#             out_channels=channels[0],
+#             padding=1
+#         )
+
+#         # DownSample
+#         self.down_blocks = nn.ModuleList()
+#         for i in range(len(channels)-1):
+#             in_ch = channels[i]
+#             out_ch = channels[i+1]
+#             if i == (len(channels)-2):
+#                 only_hw = True
+#             else:
+#                 only_hw = False
+#             res_block = ResnetBlock(
+#                 spatial_dims=spatial_dims,
+#                 in_channels=in_ch,
+#                 out_channels=in_ch
+#             )
+#             self.down_blocks.append(res_block)
+#             down_block = Downsample(
+#                 spatial_dims=spatial_dims,
+#                 num_channels=in_ch,
+#                 out_channels=out_ch,
+#                 only_hw=only_hw,
+#                 use_conv=True
+#             )
+#             self.down_blocks.append(down_block)
+
+#     def forward(self, cond_feat:torch.Tensor)-> torch.Tensor:
+#         cond_feat_list = []
+#         c = self.conv_in(cond_feat)
+#         cond_feat_list.append(c)
+
+#         for down_block in self.down_blocks:
+#             c = down_block(c)
+#             if isinstance(down_block, Downsample):
+#                 cond_feat_list.append(c)
+
+#         return cond_feat_list
     
 # # ============ 测试部分 ============
 # if __name__ == "__main__":
@@ -317,8 +430,11 @@ class T2I_OTF(nn.Module):
                  spatial_dims: int, channels: list[int], use_sigmoid: bool=False
                  ):
         super().__init__()
+        self.conv_in_fusion = T2I_OTGatedFusion(epsilon=epsilon, niter=niter,
+                                             spatial_dims=spatial_dims, 
+                                             channels=channels[0])
         self.fusion_blocks = nn.ModuleList()
-        self.length = len(channels)
+        self.length = len(channels)+1
         for i in range(len(channels)):
             ch = channels[i]
             fusion_block = T2I_OTGatedFusion(epsilon=epsilon, niter=niter,
@@ -332,10 +448,11 @@ class T2I_OTF(nn.Module):
         "多尺度文本特征和图像特征OT对齐+门控融合"
         fusion_feat_list = []
         assert len(text_feat_list) == len(cond_feat_list) == self.length, "Mismatch in number of features"
-
+        fusion_feat = self.conv_in_fusion(text_feat_list[0], cond_feat_list[0])
+        fusion_feat_list.append(fusion_feat)
         for i, fusion_block in enumerate(self.fusion_blocks):
-            t = text_feat_list[i]
-            c = cond_feat_list[i]
+            t = text_feat_list[i+1]
+            c = cond_feat_list[i+1]
             fusion_feat = fusion_block(t, c)
             fusion_feat_list.append(fusion_feat)
 
