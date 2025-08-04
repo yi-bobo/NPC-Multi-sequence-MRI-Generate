@@ -269,3 +269,58 @@ Model saved to ./Result/CPC_BM/T1_data_to_T1C_data/Checkpoints/latest.pth
 2025-08-01 08:57:02,438 - INFO - epoch:15|300; batch:401/858; Lr:0.0000355; ; loss:1.436929, loss_f:0.921559, loss_f_con:0.008360, loss_f_rec:0.016246, loss_f_cycle:0.009456, loss_f_perceptual:0.126237, loss_b:0.515370, loss_b_con:0.004965, loss_b_rec:0.008597, loss_b_cycle:0.005186, loss_b_perceptual:0.071026
 2025-08-01 09:32:13,208 - INFO - epoch:15|300; batch:501/858; Lr:0.0000661; ; loss:1.209078, loss_f:0.711154, loss_f_con:0.006043, loss_f_rec:0.014876, loss_f_cycle:0.010556, loss_f_perceptual:0.091800, loss_b:0.497924, loss_b_con:0.004628, loss_b_rec:0.009511, loss_b_cycle:0.007473, loss_b_perceptual:0.064800
 2025-08-01 10:07:21,709 - INFO - epoch:15|300; batch:601/858; Lr:0.0001984; ; loss:1.552553, loss_f:0.971856, loss_f_con:0.011288, loss_f_rec:0.020852, loss_f_cycle:0.016539, loss_f_perceptual:0.121541, loss_b:0.580697, loss_b_con:0.005411, loss_b_rec:0.012102, loss_b_cycle:0.010148, loss_b_perceptual:0.073055
+2025-08-01 10:42:41,396 - INFO - epoch:15|300; batch:701/858; Lr:0.0000355; ; loss:1.527857, loss_f:0.932072, loss_f_con:0.008831, loss_f_rec:0.019808, loss_f_cycle:0.011213, loss_f_perceptual:0.122814, loss_b:0.595785, loss_b_con:0.005188, loss_b_rec:0.011733, loss_b_cycle:0.007022, loss_b_perceptual:0.079598
+2025-08-01 11:18:00,109 - INFO - epoch:15|300; batch:801/858; Lr:0.0000661; ; loss:1.324964, loss_f:0.911270, loss_f_con:0.008852, loss_f_rec:0.015663, loss_f_cycle:0.008871, loss_f_perceptual:0.125526, loss_b:0.413694, loss_b_con:0.004772, loss_b_rec:0.007495, loss_b_cycle:0.005442, loss_b_perceptual:0.054764
+2025-08-01 11:38:16,709 - INFO - epoch:15|300;loss:1.594905, loss_f:0.950201, loss_f_con:0.009852, loss_f_rec:0.019652, loss_f_cycle:0.013115, loss_f_perceptual:0.123406, loss_b:0.644705, loss_b_con:0.006566, loss_b_rec:0.013351, loss_b_cycle:0.010193, loss_b_perceptual:0.082244
+Model saved to ./Result/CPC_BM/T1_data_to_T1C_data/Checkpoints/latest.pth
+2025-08-01 11:38:41,648 - INFO - epoch:16|300; batch:1/858; Lr:0.0000018; ; loss:2.230754, loss_f:1.328953, loss_f_con:0.010905, loss_f_rec:0.029156, loss_f_cycle:0.018935, loss_f_perceptual:0.171470, loss_b:0.901800, loss_b_con:0.006574, loss_b_rec:0.017483, loss_b_cycle:0.011107, loss_b_perceptual:0.120581
+Traceback (most recent call last):
+  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Train/Experiment/BMBD_CC/T1_T1C/train_T1_T1C.py", line 260, in <module>
+    main()
+  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Train/Experiment/BMBD_CC/T1_T1C/train_T1_T1C.py", line 235, in main
+    loss_dict = random_sliding_window_image(model, data, opt.data.patch_image_shape)
+  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Train/Experiment/BMBD_CC/T1_T1C/train_T1_T1C.py", line 179, in random_sliding_window_image
+    _, loss_dict = model(input_patch, target_patch, txt, img_con1_patch, img_con2_patch)
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Model/BMBD_CC_model.py", line 446, in forward
+    loss, loss_dict = self.p_losses(x_0, x_T, t=t, T=T, text_con=text_con, img_con1=img_con1, img_con2=img_con2)
+  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Model/BMBD_CC_model.py", line 423, in p_losses
+    loss_f, loss_f_dict = self.backward_f(x_0, x_t, x_T, t, T, text_features, img_con2)
+  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Model/BMBD_CC_model.py", line 358, in backward_f
+    loss_f_perceptual_0 = self.perceptual_loss(pred_x0_from_x0, x_0)
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Utils/loss/perceptual_loss.py", line 20, in forward
+    loss += self.vggloss(x[:, :, i, :, :].repeat(1, 3, 1, 1), y[:, :, i, :, :].repeat(1, 3, 1, 1))
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Utils/loss/perceptual_loss.py", line 34, in forward
+    x_vgg, y_vgg = self.vgg(x), self.vgg(y)
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Utils/loss/perceptual_loss.py", line 72, in forward
+    h_relu2 = self.slice2(h_relu1)
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/container.py", line 219, in forward
+    input = module(input)
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/conv.py", line 458, in forward
+    return self._conv_forward(input, self.weight, self.bias)
+  File "/home/weiyibo/app/miniconda3/envs/py310/lib/python3.10/site-packages/torch/nn/modules/conv.py", line 454, in _conv_forward
+    return F.conv2d(input, weight, bias, self.stride,
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 0 has a total capacity of 23.65 GiB of which 12.12 MiB is free. Including non-PyTorch memory, this process has 22.37 GiB memory in use. Process 1958934 has 1.25 GiB memory in use. Of the allocated memory 21.88 GiB is allocated by PyTorch, and 28.06 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)

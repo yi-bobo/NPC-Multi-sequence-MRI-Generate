@@ -1,24 +1,31 @@
+import re
 import yaml
 import logging
 from types import SimpleNamespace
 
+def auto_cast(val):
+    if isinstance(val, str):
+        # 匹配科学计数法或小数或整数
+        if re.match(r"^-?\d+(\.\d+)?(e-?\d+)?$", val, re.IGNORECASE):
+            return float(val)
+        return val
+    elif isinstance(val, dict):
+        return {k: auto_cast(v) for k, v in val.items()}
+    elif isinstance(val, list):
+        return [auto_cast(v) for v in val]
+    return val
+
 def dict_to_namespace(d):
-    """
-    递归地将 dict 转换为 SimpleNamespace
-    """
     if isinstance(d, dict):
         return SimpleNamespace(**{k: dict_to_namespace(v) for k, v in d.items()})
     elif isinstance(d, list):
         return [dict_to_namespace(i) for i in d]
-    else:
-        return d
+    return d
 
 def load_yaml_config(config_path):
-    """
-    从 YAML 文件加载配置，并转换为递归的 SimpleNamespace
-    """
-    with open(config_path, "r") as file:
-        config_dict = yaml.safe_load(file)
+    with open(config_path, "r") as f:
+        config_dict = yaml.safe_load(f)
+    config_dict = auto_cast(config_dict)
     return dict_to_namespace(config_dict)
 
 

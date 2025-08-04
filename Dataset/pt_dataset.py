@@ -53,6 +53,7 @@ class npy_3D_dataset(Dataset):
         path = (self.data_list[index].strip()).split('&')[0]
         path_dir = path.strip()
         txt = self.text_data[path_dir]
+        txt = txt.permute(1, 0)  # [B,C,N]
         patient_id = path_dir.split('/')[-1]
 
         # 加载数据

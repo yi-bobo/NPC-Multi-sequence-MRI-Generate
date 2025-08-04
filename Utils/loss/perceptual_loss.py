@@ -9,8 +9,8 @@ class VGGLoss_3D(nn.Module):
     def __init__(self, pretrained_dir='/data1/weiyibo/NPC-MRI/Models/Pre_model/VGG/vgg19-dcbb9e9d.pth', device=None, multi_gpu=False):
         super(VGGLoss_3D, self).__init__()
         self.vggloss = VGGLoss(pretrained_dir, device)
-        if multi_gpu:
-            self.vggloss = nn.DataParallel(self.vggloss)
+        # if multi_gpu:
+        #     self.vggloss = nn.DataParallel(self.vggloss)
         self.device = device
 
     def forward(self, x, y):

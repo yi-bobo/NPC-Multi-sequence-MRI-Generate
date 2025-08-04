@@ -2,15 +2,15 @@ train:   # 训练参数
   is_train: True  # 是否训练
   continue_train: false  # 是否接着上次训练
   multi_gpu: false  # 是否使用多GPU训练
-  gpu: 7 # 使用GPU序号
+  gpu: 5,6,7 # 使用GPU序号
   batch_size: 1  # 批大小
   accumulate_grad_batches: 8  # 梯度累积步数
   num_workers: 10  # 线程数
   max_epochs: 300  # 最大训练轮数
   epoch_start: 0  # 起始训练轮数
   save_freq: 10  # 保存间隔
-  val_freq: 30  # 验证间隔
-  log_freq: 100  # 日志记录间隔
+  val_freq: 1  # 验证间隔
+  log_freq: 1  # 日志记录间隔
   seed: 1234  # 随机种子
   model_name: ""  # model_with_perceputual_txt
   is_text: true  # 是否使用文本输入
@@ -27,10 +27,11 @@ loss:
   is_perceptual: true  # 是否使用感知损失
   loss_type:  'l1' # options {'l1', 'l2'}
   objective: 'ysubx' # options {'grad', 'noise', 'ysubx'}
-  lambda_con: 2.0   # 一致性损失权重
-  lambda_rec: 5.0   # 重建损失权重
-  lambda_cycle: 7.0   # 循环损失权重
-  lambda_perceptual: 6.0   # 感知损失权重
+  lambda_con: 10.0   # 一致性损失权重
+  lambda_rec: 10.0   # 重建损失权重
+  lambda_cyc: 5.0   # 循环损失权重
+  lambda_per: 2.0   # 感知损失权重
+  b_scale: 1.0
 
 ddbm:
   num_timesteps: 1000
@@ -47,10 +48,9 @@ net:
   spatial_dims: 3  # 2D网络
   in_channels: 1  # 输入通道数
   out_channels: 1  # 输出通道数
-  condition_image_in_channels: 3  # 条件输入通道数
-  condition_text_dim: 256
-  with_conditioning: true
-  num_res_blocks: [2, 2, 2, 2]  # 每层的残差块数量
+  text_channels: 256  # 文本条件通道数
+  image_channels: 3   # 条件图像通道数
+  num_res_blocks: [1, 1, 1, 1]  # 每层的残差块数量
   channels: [32, 64, 128, 256]  # 每层的通道数
   attention_levels: [False, False, False, True]  # 注意力层级,在第三四层使用注意力机制
   norm_num_groups: 32  # 归一化的组数
@@ -65,9 +65,29 @@ net:
   include_fc: True  # 是否包含全连接层
   use_combined_linear: False  # 是否使用联合线性层
   use_flash_attention: False  # 不使用闪存注意力
-  ot_eps: 0.001  # 软交叉熵的epsilon值
-  ot_iters: 1000  # 软交叉熵的迭代次数
+  epsilon: 0.1        # OT迭代参数
+  niter: 50           # OT 迭代次数
+  is_text: false
+  is_image: false
 
+# net:
+#   spatial_dims: 3         # Spatial dimension of the data (2D or 3D)
+#   in_channels: 1
+#   out_channels: 1
+#   channels: [32,64,128,256,512]
+#   text_channels: 256
+#   cond_channels: 3
+#   num_res_blocks: [2,2,2,2,2]
+#   num_heads: 8
+#   norm_num_groups: 32
+#   norm_eps: 1e-3
+#   epsilon: 1e-1
+#   niter: 50
+#   with_attn: false
+
+init:
+  init_type: 'normal'
+  init_gain: 2e-2
 
 data:   # 数据参数
   split_dir:  "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Split/zhongshan2" # "/data1/weiyibo/NPC-MRI/Split/Resample_Register_NII_zhongshan2/"
@@ -83,7 +103,8 @@ optim:  # 生成器优化器参数
   optimizer:
     name: "AdamW"
     params:
-      lr: 0.0001
+      lr_f: 6e-5
+      lr_b: 6e-5
   scheduler:
     name: "GradualWarmupScheduler"
     params:

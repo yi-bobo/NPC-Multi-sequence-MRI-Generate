@@ -217,7 +217,7 @@ class T2I_OptimalTransportAligner(nn.Module):
             对齐后的文本特征
         """
 
-        B, N, C1 = text.shape
+        B, C1, N = text.shape
         if image.dim() == 4:  # 处理二维图像特征 [B, C, H, W]
             B2, C2, H, W = image.shape
             M = H * W
@@ -625,11 +625,12 @@ class TextMapping(nn.Module):
 
     def forward(self, feat: torch.Tensor) -> torch.Tensor:
         # feat: [B, N, D_text] → [B, D_text, N]
-        x = feat.permute(0, 2, 1)
+        # x = feat.permute(0, 2, 1)
+        x = feat
         for block in self.layers:
             x = block(x)
         # [B, D_mapped, N] → [B, N, D_mapped]
-        return x.permute(0, 2, 1)
+        return x
 # endregion
 
 # region  U-Net 网络
@@ -655,7 +656,7 @@ class ConditionalDiffusionModelUNet(nn.Module):
         spatial_dims: int,
         in_channels: int,
         out_channels: int,
-        condition_image_in_channels: int,
+        image_channels: int,
         condition_text_dim: int,
         with_conditioning: bool,
         num_res_blocks: list[int],
@@ -687,7 +688,7 @@ class ConditionalDiffusionModelUNet(nn.Module):
             spatial_dims, in_channels, channels[0], strides=1, kernel_size=3, padding=1, conv_only=True
         )
         self.img_conv_in = Convolution(
-            spatial_dims, condition_image_in_channels, channels[0],
+            spatial_dims, image_channels, channels[0],
             strides=1, kernel_size=3, padding=1, conv_only=True
         )
         self.text_conv_in = TextMapping(in_channels=condition_text_dim, out_channels=channels[0], num_layers=2)
@@ -846,7 +847,7 @@ class ConditionalDiffusionModelUNet(nn.Module):
         self,
         x: torch.Tensor,               # [B, C, D, H, W]
         timesteps: torch.Tensor,       # [B]
-        text_features: torch.Tensor,   # [B, N, D_text]
+        text_feat: torch.Tensor,   # [B, N, D_text]
         cond_image: torch.Tensor       # [B, C_img, D, H, W]
     ) -> torch.Tensor:
         
@@ -858,7 +859,7 @@ class ConditionalDiffusionModelUNet(nn.Module):
         ## 2.1 输入、文本、条件图像卷积到对应维度
         h      = self.conv_in(x)         # 主干图像特征
         h_img  = self.img_conv_in(cond_image)  # 条件图像特征
-        h_text = self.text_conv_in(text_features)  # 文本特征
+        h_text = self.text_conv_in(text_feat)  # 文本特征
         ## 2.2 文本-条件图像 --> OT特征对齐+门控融合
         h_text_alig, _ = self.text_image_ot(h_text, h_img)  # 文本-条件图像对齐
         h_cond = self.text_img_fusion_conv_in(h_text_alig, h_img)  # 条件-网络特征融合
@@ -882,7 +883,7 @@ class ConditionalDiffusionModelUNet(nn.Module):
 
             # —— 文本特征映射
             # —— 文本特征映射
-            text_feat = txt_conv(text_features)
+            text_feat = txt_conv(text_feat)
             # —— 文本-条件图像对齐+门控融合
             text_feat_alig, _ = self.text_image_ot(text_feat, h_img)
             cond_feat = txt_gate(text_feat_alig, h_img)
@@ -896,9 +897,9 @@ class ConditionalDiffusionModelUNet(nn.Module):
 
         # 5. 中间层 同样处理
         # 文本投影
-        t_mid = self.text_conv_mid(text_features)  # 映射到 mid_ch
+        t_mid = self.text_conv_mid(text_feat)  # 映射到 mid_ch
         # 条件图像中间层
-        h_img= self.img_mid_block(hidden_states=h_img, context=text_features)
+        h_img= self.img_mid_block(hidden_states=h_img, context=text_feat)
         # 文本↔条件图像对齐 OT + 门控融合
         h_text_alig, _ = self.text_image_ot(t_mid, h_img)
         h_con_mid = self.text_img_fusion_mid(h_text_alig, h_img)

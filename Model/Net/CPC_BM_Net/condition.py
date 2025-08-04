@@ -74,7 +74,7 @@ class TextEncoder(nn.Module):
 # region 图像特征提取
 import sys
 sys.path.append("/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/")
-from Model.Net.CPC_BM_Net.down_block import DownSample
+from Model.Net.CPC_BM_Net.down_sample import Downsample
 from Model.Net.CPC_BM_Net.resnet_block import ResnetBlock
 
 class CondImageEncoder(nn.Module):
