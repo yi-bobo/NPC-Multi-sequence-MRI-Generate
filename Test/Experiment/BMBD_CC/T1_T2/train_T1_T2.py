@@ -11,8 +11,8 @@ from torch.utils.data import DataLoader
 # 自定义模块导入
 warnings.filterwarnings('ignore')    # 忽略警告
 sys.path.append('/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/')
-from Model.CPC_BM_no_cond import CPC_BM
-from Dataset.pt_dataset import npy_3D_dataset
+from Model.BMBD_CC_model import BMBD_CC_model
+from Dataset.cond_dataset import npy_3D_dataset
 from Utils.path_util import create_directories
 from Utils.config_util import load_yaml_config, log_namespace
 from Utils.logging_util import setup_logging, save_loss_csv
@@ -189,7 +189,7 @@ def random_sliding_window_image(model, data, patch_size):
 
 def main():
     # 1️⃣ 加载配置
-    config_path = "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Config/CPC_BM/T1_T1C.yaml"
+    config_path = "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Config/BDBM_CC/T1_T2.yaml"
     opt = load_yaml_config(config_path)
 
     # 1.1 设置随机种子与保存路径
@@ -216,15 +216,13 @@ def main():
     train_loader, val_loader, _ = initialize_dataloader(opt)
 
     # 5️⃣ 创建模型
-    model = CPC_BM(opt).to(opt.train.device)
+    model = BMBD_CC_model(opt).to(opt.train.device)
     model_components = {'net_f': model.net_f.state_dict(), 'net_b': model.net_b.state_dict(), 'optimizer': model.optimizer.state_dict()}
     if opt.train.continue_train:
         logging.info("加载已保存模型参数")
         val_model = {'net_f': model.net_f, 'net_b': model.net_b, 'optimizer': model.optimizer}
         opt.train.epoch_start = load_model(val_model, checkpoint_path=opt.path.checkpoint_path, device=opt.train.device)
     best_metrics = {metric: 0 for metric in ['MAE_x0', 'SSIM_x0', 'PSNR_x0', 'MAE_xT', 'SSIM_xT', 'PSNR_xT']}
-    
-    "加载初始模型和数据集占用显存：5.4%"
 
     # 6️⃣ 开始训练
     logging.info("========== ⏳开始训练⏳ ==========")

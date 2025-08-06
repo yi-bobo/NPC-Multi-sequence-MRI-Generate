@@ -19,7 +19,7 @@ val:
 
 path:
   save_dir: "./Result/Pix2Pix/"
-  checkpoint_path: ""
+  checkpoint_path: "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Result/Pix2Pix/T1C_to_T1/Checkpoints/best_ssim.pth"
 
 data:   # 数据参数
   split_dir:  "/data1/weiyibo/NPC-MRI/Code/Pctch_model/Split/zhongshan2" # "/data1/weiyibo/NPC-MRI/Split/Resample_Register_NII_zhongshan2/"

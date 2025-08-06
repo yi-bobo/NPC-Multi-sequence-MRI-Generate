@@ -2,9 +2,10 @@ import os
 import math
 import torch
 import random
-import itertools
 import numpy as np
+import nibabel as nib
 import torch.nn as nn
+from PIL import Image
 from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
 
@@ -273,7 +274,7 @@ class CycleGANModel(nn.Module):
 
         return input_data, target_data, pred_targ_data, pred_input_data, mae_targ, SSIM_targ, PSNR_targ, mae_input, SSIM_input, PSNR_input
     
-def plot(self, input, target, pred_target, pred_input, data_mapping, path):
+    def plot(self, input, target, pred_target, pred_input, data_mapping, path):
         # 保存为nii
         for key, value in data_mapping.items():
             value = value.cpu().squeeze(0).squeeze(0).numpy()
@@ -296,3 +297,19 @@ def plot(self, input, target, pred_target, pred_input, data_mapping, path):
             self.save_png(self.norm_png(pred_input[slice, :, :]), os.path.join(path, f"pred_{self.sour_name}_{slice}.png"))
             self.save_png(self.norm_png(pred_target[slice, :, :]), os.path.join(path, f"pred_{self.targ_name}_{slice}.png"))
 
+    def norm_png(self, data):
+        data = (data - data.min()) / (data.max() - data.min())
+        return data
+
+    def save_png(self, data, path):
+        data = (data*255).astype(np.uint8)
+        data = Image.fromarray(data)
+        data.save(path)
+
+    def save_nii(self, data, path):
+        data = np.transpose(data, (2, 1, 0))
+        data = np.rot90(data, k=-2, axes=(1, 2))  # 顺时针旋转 180 度
+        voxel_spacing = [1, 1, 6]  # z, x, y
+        affine = np.diag(voxel_spacing + [1])
+        nii_x = nib.Nifti1Image(data, affine)
+        nib.save(nii_x, path)

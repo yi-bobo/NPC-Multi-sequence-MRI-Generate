@@ -3,7 +3,9 @@ import math
 import torch
 import random
 import numpy as np
+import nibabel as nib
 import torch.nn as nn
+from PIL import Image
 from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
 
@@ -207,24 +209,40 @@ class RegGANModel(nn.Module):
 
         return input_data, target_data, pred_targ_data, mae, SSIM, PSNR
     
-def plot(self, input, target, pred_target, data_mapping, path):
-        # 保存为nii
-        for key, value in data_mapping.items():
-            value = value.cpu().squeeze(0).squeeze(0).numpy()
-            self.save_nii(value, os.path.join(path, f"{key}.nii.gz"))
-        self.save_nii(input, os.path.join(path, f"{self.sour_name}.nii.gz"))
-        self.save_nii(target, os.path.join(path, f"{self.targ_name}.nii.gz"))
-        self.save_nii(pred_target, os.path.join(path, f"pred_{self.targ_name}.nii.gz"))
+    def plot(self, input, target, pred_target, data_mapping, path):
+            # 保存为nii
+            for key, value in data_mapping.items():
+                value = value.cpu().squeeze(0).squeeze(0).numpy()
+                self.save_nii(value, os.path.join(path, f"{key}.nii.gz"))
+            self.save_nii(input, os.path.join(path, f"{self.sour_name}.nii.gz"))
+            self.save_nii(target, os.path.join(path, f"{self.targ_name}.nii.gz"))
+            self.save_nii(pred_target, os.path.join(path, f"pred_{self.targ_name}.nii.gz"))
 
-        # 保存为png
-        nonzero_slices = []
-        for slice in range(pred_target.shape[0]):
-            if target[slice, :, :].sum() > 0:
-                nonzero_slices.append(slice)
-        if len(nonzero_slices) != 0:
-            slice = random.randint(0, len(nonzero_slices)-1)
-            slice = nonzero_slices[slice]
-            self.save_png(self.norm_png(input[slice, :, :]), os.path.join(path, f"{self.sour_name}_{slice}.png"))
-            self.save_png(self.norm_png(target[slice, :, :]), os.path.join(path, f"{self.targ_name}_{slice}.png"))
-            self.save_png(self.norm_png(pred_target[slice, :, :]), os.path.join(path, f"pred_{self.targ_name}_{slice}.png"))
+            # 保存为png
+            nonzero_slices = []
+            for slice in range(pred_target.shape[0]):
+                if target[slice, :, :].sum() > 0:
+                    nonzero_slices.append(slice)
+            if len(nonzero_slices) != 0:
+                slice = random.randint(0, len(nonzero_slices)-1)
+                slice = nonzero_slices[slice]
+                self.save_png(self.norm_png(input[slice, :, :]), os.path.join(path, f"{self.sour_name}_{slice}.png"))
+                self.save_png(self.norm_png(target[slice, :, :]), os.path.join(path, f"{self.targ_name}_{slice}.png"))
+                self.save_png(self.norm_png(pred_target[slice, :, :]), os.path.join(path, f"pred_{self.targ_name}_{slice}.png"))
 
+    def norm_png(self, data):
+        data = (data - data.min()) / (data.max() - data.min())
+        return data
+
+    def save_png(self, data, path):
+        data = (data*255).astype(np.uint8)
+        data = Image.fromarray(data)
+        data.save(path)
+
+    def save_nii(self, data, path):
+        data = np.transpose(data, (2, 1, 0))
+        data = np.rot90(data, k=-2, axes=(1, 2))  # 顺时针旋转 180 度
+        voxel_spacing = [1, 1, 6]  # z, x, y
+        affine = np.diag(voxel_spacing + [1])
+        nii_x = nib.Nifti1Image(data, affine)
+        nib.save(nii_x, path)

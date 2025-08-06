@@ -2,7 +2,7 @@ train:   # 训练参数
   is_train: True  # 是否训练
   continue_train: true  # 是否接着上次训练
   multi_gpu: false  # 是否使用多GPU训练
-  gpu: 0 # 使用GPU序号
+  gpu: 7 # 使用GPU序号
   batch_size: 4  # 批大小
   num_workers: 1  # 线程数
   max_epochs: 300  # 最大训练轮数
@@ -18,7 +18,7 @@ val:
 
 path:
   save_dir: "./Result/DDPM"
-  checkpoint_path: "./Result/DDPM/T2_to_T1/Checkpoints/latest.pth"
+  checkpoint_path: "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Result/DDPM/T2_to_T1/Checkpoints/best_ssim.pth"
 
 loss:
   lambda_l1: 1

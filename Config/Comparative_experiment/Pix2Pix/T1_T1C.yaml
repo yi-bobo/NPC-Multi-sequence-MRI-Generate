@@ -2,7 +2,7 @@ train:   # 训练参数
   multi_gpu: false  # 是否使用多GPU
   is_train: True  # 是否训练
   continue_train: false  # 是否接着上次训练
-  gpu: 0  # 使用GPU序号
+  gpu: 3  # 使用GPU序号
   batch_size: 8  # 批大小
   num_workers: 4  # 线程数
   seed: 1234  # 随机种子
@@ -19,7 +19,7 @@ val:
 
 path:
   save_dir: "./Result/Pix2Pix/"
-  checkpoint_path: ""
+  checkpoint_path: "/data1/weiyibo/NPC-MRI/Code/NPC-Multi-sequence-MRI-Generate/Result/Pix2Pix/T1_to_T1C/Checkpoints/best_ssim.pth"
 
 data:   # 数据参数
   split_dir:  "/data1/weiyibo/NPC-MRI/Code/Pctch_model/Split/zhongshan2" # "/data1/weiyibo/NPC-MRI/Split/Resample_Register_NII_zhongshan2/"

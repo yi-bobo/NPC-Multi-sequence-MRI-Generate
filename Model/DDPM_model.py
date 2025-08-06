@@ -253,8 +253,11 @@ class DDPMModel(nn.Module):
         return sour, targ, pred_targ_data, mae, SSIM, PSNR
     
 
-    def plot(self, x, y, pred_x, path):
+    def plot(self, x, y, pred_x, data_mapping, path):
         # 保存为nii
+        for key, value in data_mapping.items():
+            value = value.cpu().squeeze(0).squeeze(0).numpy()
+            self.save_nii(value, os.path.join(path, f"{key}.nii.gz"))
         self.save_nii(x, os.path.join(path, f"{self.sour_name}.nii"))
         self.save_nii(pred_x, os.path.join(path, f"pred_{self.sour_name}.nii"))
         self.save_nii(y, os.path.join(path, f"{self.targ_name}.nii"))

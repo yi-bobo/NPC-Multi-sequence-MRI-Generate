@@ -76,7 +76,8 @@ class DiffusionModelUNet(nn.Module):
             padding=1,
             conv_only=True,
         )
-        self.conv_fusion_block = DynamicConvFiLM(channels=channels[0])
+        if is_text and is_image:
+            self.conv_fusion_block = DynamicConvFiLM(channels=channels[0])
 
         # time
         time_embed_dim = channels[0] * 4
@@ -95,12 +96,13 @@ class DiffusionModelUNet(nn.Module):
             output_channel = channels[i]
             is_final_block = i == len(channels) - 1
             only_hw = (i == len(channels) - 1)
-            if is_final_block:
-                fusion_block = MultiHeadAttention(spatial_dims=spatial_dims, channels=channels[i], cross_attention=True)
-                self.cond_net_fusion_blocks.append(fusion_block)
-            else:
-                fusion_block = DynamicConvFiLM(channels=channels[i])
-                self.cond_net_fusion_blocks.append(fusion_block)
+            if is_text and is_image:
+                if is_final_block:
+                    fusion_block = MultiHeadAttention(spatial_dims=spatial_dims, channels=channels[i], cross_attention=True)
+                    self.cond_net_fusion_blocks.append(fusion_block)
+                else:
+                    fusion_block = DynamicConvFiLM(channels=channels[i])
+                    self.cond_net_fusion_blocks.append(fusion_block)
 
             down_block = get_down_block(
                 spatial_dims=spatial_dims,
@@ -243,18 +245,25 @@ class DiffusionModelUNet(nn.Module):
 
         # 2. initial convolution
         h = self.conv_in(x)
-        h_cond = cond_feat_list.pop()
-        h = self.conv_fusion_block(h, h_cond)
+        if self.is_text and self.is_image:
+            h_cond = cond_feat_list.pop()
+            h = self.conv_fusion_block(h, h_cond)
         # 3. down blocks with conditional fusion
         down_block_res_samples: list[torch.Tensor] = [h]
-        
-        for i, (downsample_block, fusion_block) in enumerate(zip(self.down_blocks, self.cond_net_fusion_blocks)):
-            # 下采样块处理
-            h, res_samples = downsample_block(hidden_states=h, temb=emb)
-            h_cond = cond_feat_list.pop()
-            h = fusion_block(h, h_cond)
-            for residual in res_samples:
-                down_block_res_samples.append(residual)
+        if self.is_text and self.is_image:
+            for i, (downsample_block, fusion_block) in enumerate(zip(self.down_blocks, self.cond_net_fusion_blocks)):
+                # 下采样块处理
+                h, res_samples = downsample_block(hidden_states=h, temb=emb)
+                h_cond = cond_feat_list.pop()
+                h = fusion_block(h, h_cond)
+                for residual in res_samples:
+                    down_block_res_samples.append(residual)
+        else:
+            for i, downsample_block in enumerate(self.down_blocks):
+                # 下采样块处理
+                h, res_samples = downsample_block(hidden_states=h, temb=emb)
+                for residual in res_samples:
+                    down_block_res_samples.append(residual)
 
         # 4. middle block with conditional fusion
         h = self.middle_block(hidden_states=h, temb=emb)

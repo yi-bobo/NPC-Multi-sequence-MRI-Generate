@@ -119,8 +119,10 @@ class CPC_BM(nn.Module):
             self.perceptual_loss = VGGLoss_3D(device=self.device, multi_gpu=self.multi_gpu)
 
         # Optimizer + Scheduler
-        self.optimizer_f = torch.optim.Adam(self.net_f.parameters(), lr=opt.optim.optimizer.params.lr_f, weight_decay=1e-4, betas = (0.5, 0.999))
-        self.optimizer_b = torch.optim.Adam(self.net_b.parameters(), lr=opt.optim.optimizer.params.lr_b, weight_decay=1e-4, betas = (0.5, 0.999))
+        self.optimizer_f = torch.optim.Adam(self.net_f.parameters(), lr=opt.optim.optimizer.params.lr_f, weight_decay=1e-4, betas = (0.1, 0.999))
+        self.optimizer_b = torch.optim.Adam(self.net_b.parameters(), lr=opt.optim.optimizer.params.lr_b, weight_decay=1e-4, betas = (0.1, 0.999))
+        self.schduler_f = torch.optim.lr_scheduler.StepLR(self.optimizer_f, step_size=400, gamma=0.9)
+        self.schduler_b = torch.optim.lr_scheduler.StepLR(self.optimizer_b, step_size=400, gamma=0.9)
         
         self.scaler = GradScaler()  # mixed precision
         
@@ -298,6 +300,7 @@ class CPC_BM(nn.Module):
         loss_f_dict['loss_f'] = loss_f.item()
         loss_f.backward()
         self.optimizer_f.step()
+        self.schduler_f.step()
 
         x_t = self.q_sample(x_T, x_0, t)
         # B direction  x_0 -> x_T
@@ -334,6 +337,7 @@ class CPC_BM(nn.Module):
         loss_b_dict['loss_b'] = loss_b.item()
         loss_b.backward()
         self.optimizer_b.step()
+        self.schduler_b.step()
 
         # g_f = grad_norm(self.net_f); g_b = grad_norm(self.net_b)
         # print(f"||∇f||={g_f:.3f}, ||∇b||={g_b:.3f}")
@@ -429,15 +433,10 @@ class CPC_BM(nn.Module):
                 if self.is_img:
                     img_con_batch[j] = img_con[:, :, d_start:d_start + patch_d, h_start:h_start + patch_h, w_start:w_start + patch_w]
 
-            # 提取文本特征
-            text_features = None
-            txt_con_batch = txt_con * actual_batch_size
-            if self.is_text:
-                text_features = self.text_feature_extraction(txt_con_batch)
 
             # 推理当前批次
             with torch.no_grad():
-                pred_targ_batch = self.p_sample_loop(xT_batch, text_features, img_con_batch)
+                pred_targ_batch = self.p_sample_loop(xT_batch, txt_con, img_con_batch)
 
             # 将生成结果拼接回预测张量
             for j, (d_start, h_start, w_start) in enumerate(batch_indices):
